@@ -1,0 +1,29 @@
+[package]
+name = "RustTest"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ['cdylib', 'rlib']
+
+[dependencies]
+interoptopus = "0.14.18"
+interoptopus_backend_csharp = "0.14.18"
+cpal = {path = "D:/Programming/RUST/cpal"}
+windows-named-pipe = {path = "D:/Programming/RUST/windows-named-pipe-master"}
+rosc = "0.10.1"
+prost = "0.12"
+protobuf = "3.3.0"
+anyhow = "1.0"
+nalgebra = "0.32.3"
+strum = "0.25.0"
+strum_macros = "0.25.2"
+
+# FFT Convolution related crates
+realfft = "3.2.0"
+kdtree = "0.7.0"
+num-complex = "0.4.2"
+num-traits = "0.2.15"
+hound = "3.5.0"
+nohash-hasher = "0.2.0"
+byteorder = "1.5.0"
