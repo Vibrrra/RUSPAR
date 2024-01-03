@@ -5,11 +5,11 @@ pub mod buffers;
 pub mod convolver;
 pub mod fdn;
 pub mod filter;
-mod image_source_method;
+pub mod image_source_method;
 pub mod mixingmatrix;
 pub mod osc;
 pub mod readwav;
-mod scene;
+pub mod scene;
 pub mod server;
 use interoptopus::ffi_function;
 
