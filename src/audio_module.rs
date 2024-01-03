@@ -91,7 +91,7 @@ where
     let ism_buffer_len = unsafe {
      (sample_rate * 15.0 / speed_of_sound ).to_int_unchecked()    
     };
-    let ism_buffers = vec![CircularDelayBuffer::new(ism_buffer_len);36];
+    let mut ism_buffers = vec![CircularDelayBuffer::new(ism_buffer_len);36];
      
     let fdn = FeedbackDelayNetwork::new(n_delaylines, )
     // Create Stream
@@ -104,6 +104,7 @@ where
                 todo!();
             }
             //} else {
+            let ismb = ism_buffers[0].set_delay_time_samples();
             //};
             for i in 0..n_sources {
                 // calc image n_sources
@@ -125,6 +126,7 @@ fn audio_process<T>(output_buffer: &mut [T])
 where
     T: Sample + FromSample<f32>,
 {
+
     todo!();
     // UpdateEngine(scene_data);
 }

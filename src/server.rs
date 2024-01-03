@@ -9,7 +9,7 @@ use protobuf::Message;
 
 // test struct. Don't what to send to the audio lopp yet
 #[derive(Debug, Default, Clone)]
-struct ism_meta_data {
+struct IsmMetaData {
     pub az: f32,
     pub el: f32,
     pub dist: f32,
@@ -28,7 +28,7 @@ pub fn start_server(port: u32) -> ! {
     // maybe start audio module here
     //
 
-    let mut ism_meta_data_vector = vec![ism_meta_data::default(); 36];
+    let mut ism_meta_data_vector = vec![IsmMetaData::default(); 36];
     start_audio_thread(acoustic_scene.clone());
 
     loop {
