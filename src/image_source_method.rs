@@ -1,6 +1,4 @@
-use std::ops::Bound;
-
-use nalgebra::{dimension, Point3, Quaternion, Vector3};
+use nalgebra::{Point3, Quaternion, Vector3};
 use num_traits::Zero;
 use protobuf::reflect;
 use strum_macros::EnumIter;
@@ -293,7 +291,7 @@ impl ISMAcousticScene {
         }
     }
 
-    pub fn from_protobuf_scene(&mut self, scene_data: &Scene_data) {
+    pub fn update_from_psd(&mut self, scene_data: &Scene_data) {
         let mut new_positions: Vec<Point3<f32>> = Vec::new();
         for s in scene_data.sources.transforms.iter() {
             new_positions.push(Point3::new(s.position.x, s.position.y, s.position.z));
