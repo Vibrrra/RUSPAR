@@ -91,8 +91,8 @@ impl ISMRoom {
 
 #[derive(Debug, Default)]
 pub struct ISMListener {
-    position: Point3<f32>,
-    orientation: Quaternion<f32>,
+    pub position: Point3<f32>,
+    pub orientation: Quaternion<f32>,
 }
 
 impl ISMListener {
@@ -112,9 +112,9 @@ impl ISMListener {
 
 #[derive(Debug, Default)]
 pub struct ISMSoundSource {
-    position: Point3<f32>,
-    orientation: Quaternion<f32>,
-    reflector: CardinalDirection,
+    pub position: Point3<f32>,
+    pub orientation: Quaternion<f32>,
+    pub reflector: CardinalDirection,
 }
 impl ISMSoundSource {
     pub fn new(position: Point3<f32>, orientation: Quaternion<f32>) -> Self {
@@ -181,11 +181,11 @@ pub trait Source {
 
 #[derive(Debug, Default)]
 pub struct ISMAcousticScene {
-    room: ISMRoom,
-    sound_sources: Vec<ISMSoundSource>,
-    image_sources: Vec<Vec<ISMImageSource>>,
-    listener: ISMListener,
-    max_order: usize,
+    pub room: ISMRoom,
+    pub sound_sources: Vec<ISMSoundSource>,
+    pub image_sources: Vec<Vec<ISMImageSource>>,
+    pub listener: ISMListener,
+    pub max_order: usize,
 }
 
 impl ISMAcousticScene {

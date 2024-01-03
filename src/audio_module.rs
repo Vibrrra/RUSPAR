@@ -9,8 +9,9 @@ use std::thread;
 use crate::{
     audioSceneHandlerData::Scene_data,
     convolver::Spatializer,
+    fdn::{self, FeedbackDelayNetwork},
     filter::{BinauralFilter, FFTManager, FilterStorage, FilterTree},
-    image_source_method::ISMAcousticScene,
+    image_source_method::ISMAcousticScene, buffers::CircularDelayBuffer,
 };
 
 //pub fn start_audio_thread(acoustic_scene: Arc<Mutex<ISMAcousticScene>>) {
@@ -67,7 +68,7 @@ fn run<T>(
 where
     T: SizedSample + FromSample<f32>,
 {
-    let _sample_rate = config.sample_rate.0 as f32;
+    let sample_rate = config.sample_rate.0 as f32;
     let channels = config.channels as usize;
     let buffer_size = 512;
     let error_callback = |err| eprintln!("Error occured on stream: {}", err);
@@ -85,6 +86,14 @@ where
     let mut n_sources = 0;
 
     // let mut audio_scene = ISMAcousticScene::default();
+    let ism_order = 2;
+    let speed_of_sound = 343.0;
+    let ism_buffer_len = unsafe {
+     (sample_rate * 15.0 / speed_of_sound ).to_int_unchecked()    
+    };
+    let ism_buffers = vec![CircularDelayBuffer::new(ism_buffer_len);36];
+     
+    let fdn = FeedbackDelayNetwork::new(n_delaylines, )
     // Create Stream
     let stream = devcice.build_output_stream(
         config,
