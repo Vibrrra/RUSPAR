@@ -64,7 +64,7 @@ fn test1() {
     };
 
     // update position
-    lis.position = Point3::new(02.0, 1.5, 2.0);
+    lis.position = Point3::new(1.0, 1.5, 2.0);
     s1.position = Point3::new(2.0, 1.5, 4.0);
     s1.dist = nalgebra::distance(&lis.position,&s1.position);
     s1.buffer.set_delay_time_samples(sample_rate * s1.dist / 343.0);
