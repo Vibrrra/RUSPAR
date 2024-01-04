@@ -11,11 +11,11 @@ use crate::{
     convolver::Spatializer,
     fdn::{self, FeedbackDelayNetwork},
     filter::{BinauralFilter, FFTManager, FilterStorage, FilterTree},
-    image_source_method::ISMAcousticScene, buffers::CircularDelayBuffer,
+    image_source_method::ISMAcousticScene, buffers::CircularDelayBuffer, server::IsmMetaData,
 };
 
 //pub fn start_audio_thread(acoustic_scene: Arc<Mutex<ISMAcousticScene>>) {
-pub fn start_audio_thread(acoustic_scene: Arc<Mutex<ISMAcousticScene>>) {
+pub fn start_audio_thread(meta_data: Arc<Mutex<Vec<IsmMetaData>>>) {
     //pub fn start_audio_thread(scene_data: Arc<Mutex<ISMAcousticScene>>) {
     thread::spawn(move || {
         let host = cpal::default_host();
@@ -24,34 +24,34 @@ pub fn start_audio_thread(acoustic_scene: Arc<Mutex<ISMAcousticScene>>) {
 
         let audio_thread_result = match output_config.sample_format() {
             cpal::SampleFormat::I8 => {
-                run::<i8>(&output_device, &output_config.into(), acoustic_scene)
+                run::<i8>(&output_device, &output_config.into(), meta_data)
             }
             cpal::SampleFormat::I16 => {
-                run::<i16>(&output_device, &output_config.into(), acoustic_scene)
+                run::<i16>(&output_device, &output_config.into(), meta_data)
             }
             cpal::SampleFormat::I32 => {
-                run::<i32>(&output_device, &output_config.into(), acoustic_scene)
+                run::<i32>(&output_device, &output_config.into(), meta_data)
             }
             cpal::SampleFormat::I64 => {
-                run::<i64>(&output_device, &output_config.into(), acoustic_scene)
+                run::<i64>(&output_device, &output_config.into(), meta_data)
             }
             cpal::SampleFormat::U8 => {
-                run::<u8>(&output_device, &output_config.into(), acoustic_scene)
+                run::<u8>(&output_device, &output_config.into(), meta_data)
             }
             cpal::SampleFormat::U16 => {
-                run::<u16>(&output_device, &output_config.into(), acoustic_scene)
+                run::<u16>(&output_device, &output_config.into(), meta_data)
             }
             cpal::SampleFormat::U32 => {
-                run::<u32>(&output_device, &output_config.into(), acoustic_scene)
+                run::<u32>(&output_device, &output_config.into(), meta_data)
             }
             cpal::SampleFormat::U64 => {
-                run::<u64>(&output_device, &output_config.into(), acoustic_scene)
+                run::<u64>(&output_device, &output_config.into(), meta_data)
             }
             cpal::SampleFormat::F32 => {
-                run::<f32>(&output_device, &output_config.into(), acoustic_scene)
+                run::<f32>(&output_device, &output_config.into(), meta_data)
             }
             cpal::SampleFormat::F64 => {
-                run::<f64>(&output_device, &output_config.into(), acoustic_scene)
+                run::<f64>(&output_device, &output_config.into(), meta_data)
             }
             sample_format => panic!("Unsupported sample format '{sample_format}'"),
         };
@@ -63,7 +63,7 @@ pub fn start_audio_thread(acoustic_scene: Arc<Mutex<ISMAcousticScene>>) {
 fn run<T>(
     devcice: &cpal::Device,
     config: &cpal::StreamConfig,
-    audio_scene: Arc<Mutex<ISMAcousticScene>>,
+    meta_data: Arc<Mutex<Vec<IsmMetaData>>>,
 ) -> Result<(), anyhow::Error>
 where
     T: SizedSample + FromSample<f32>,
@@ -91,26 +91,29 @@ where
     let ism_buffer_len = unsafe {
      (sample_rate * 15.0 / speed_of_sound ).to_int_unchecked()    
     };
+
+
     let mut ism_buffers = vec![CircularDelayBuffer::new(ism_buffer_len);36];
      
-    let fdn = FeedbackDelayNetwork::new(n_delaylines, )
+    // let fdn = FeedbackDelayNetwork::new(n_delaylines, )
     // Create Stream
     let stream = devcice.build_output_stream(
         config,
         move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
             // read audio for every obejct.
             // collect
-            if let Ok(v) = audio_scene.try_lock() {
-                todo!();
+            if let Ok(ism_data_vector) = meta_data.try_lock() {
+                ism_buffers[0].set_delay_time_samples(sample_rate * ism_data_vector[0].dist / speed_of_sound);
+                // set air absoprtion 
             }
             //} else {
-            let ismb = ism_buffers[0].set_delay_time_samples();
+            
             //};
             for i in 0..n_sources {
                 // calc image n_sources
-
-                spatializer.process(input, data, active_hrtfs[i], prev_hrtfs[i]);
-                audio_process(data);
+                //todo!();
+                //spatializer.process(input, data, active_hrtfs[i], prev_hrtfs[i]);
+                //audio_process(data);
             }
         },
         error_callback,

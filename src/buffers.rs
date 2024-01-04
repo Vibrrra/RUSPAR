@@ -29,6 +29,7 @@ impl CircularDelayBuffer {
     }
     pub fn set_delay_time_samples(&mut self, delay_in_samples: f32) {
         self.rp = self.wp as f32 - delay_in_samples;
+
     }
 
     pub fn process(&mut self, sample: f32) -> f32 {

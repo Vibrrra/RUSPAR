@@ -9,7 +9,7 @@ use protobuf::Message;
 
 // test struct. Don't what to send to the audio lopp yet
 #[derive(Debug, Default, Clone)]
-struct IsmMetaData {
+pub struct IsmMetaData {
     pub az: f32,
     pub el: f32,
     pub dist: f32,
@@ -23,13 +23,14 @@ pub fn start_server(port: u32) -> ! {
 
     // config the engine hereo
 
-    let acoustic_scene = Arc::new(Mutex::new(ISMAcousticScene::default()));
+    let mut acoustic_scene: ISMAcousticScene = ISMAcousticScene::default();
+    // let acoustic_scene = Arc::new(Mutex::new(ISMAcousticScene::default()));
     //let mut scene_data = Scene_data::default();
     // maybe start audio module here
     //
 
-    let mut ism_meta_data_vector = vec![IsmMetaData::default(); 36];
-    start_audio_thread(acoustic_scene.clone());
+    let mut ism_meta_data_vector = Arc::new(Mutex::new(vec![IsmMetaData::default(); 36]));
+    start_audio_thread(ism_meta_data_vector.clone()); //acoustic_scene.clone());
 
     loop {
         // receive from adress
@@ -37,15 +38,21 @@ pub fn start_server(port: u32) -> ! {
 
         // parse byte string to protobuf struct
         let scene_data = Scene_data::parse_from_bytes(&byte_string[..]).unwrap();
-
-        match acoustic_scene.try_lock() {
+        acoustic_scene.update_from_psd(&scene_data);
+        match ism_meta_data_vector.try_lock() {
             Ok(mut data) => {
-                data.update_from_psd(&scene_data);
-                for i in 0..ism_meta_data_vector.len() {
-                    ism_meta_data_vector[i].dist = nalgebra::distance(
-                        &data.sound_sources[i].position,
-                        &data.listener.position,
+                
+                for i in 0..data.len() {
+                    data[i].dist = nalgebra::distance(
+                        &acoustic_scene.sound_sources[i].position,
+                        &acoustic_scene.listener.position,
                     ) as f32;
+
+                    // calc az el here - Andi-Chrissi-Lösung hier
+                    
+                    data[i].az = 0.0;
+                    data[i].el = 0.0;
+
                 }
             }
             Err(_) => todo!(), // update_from_psd(&scene_data)

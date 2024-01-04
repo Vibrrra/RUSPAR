@@ -257,7 +257,7 @@ impl ISMAcousticScene {
         let room = ISMRoom::from_scene_data(scene_data);
         let listener: ISMListener = ISMListener::from_scene_data(scene_data);
         let mut sound_sources = Vec::new();
-        for source_transform in scene_data.sources.transforms {
+        for source_transform in &scene_data.sources.transforms {
             sound_sources.push(ISMSoundSource::from_transform(&source_transform));
         }
 
