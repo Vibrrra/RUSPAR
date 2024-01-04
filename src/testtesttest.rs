@@ -1,17 +1,22 @@
 use crate::buffers::CircularDelayBuffer;
 use nalgebra::Point3;
 use nalgebra::Quaternion;
+use protobuf::reflect;
 
-
+// Enum for ISM Algorithm
+// "No" => True Sound Source
+// "X0 - Z1" => Reflected on respective shoebox boundary
 #[derive(Debug, Default)]
 pub enum Reflected {
-    X0, X1,
-    Y0, Y1,
-    Z0, Z1,
+    X0,
+    X1,
+    Y0,
+    Y1,
+    Z0,
+    Z1,
     #[default]
     No,
 }
-
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -38,7 +43,7 @@ struct Source {
     pub orientation: Quaternion<f32>,
     pub buffer: CircularDelayBuffer,
     pub dist: f32,
-    pub Reflected,
+    pub reflector: Reflected,
 }
 
 #[allow(dead_code)]
@@ -49,12 +54,18 @@ impl Source {
         room: &Room,
         speed_of_sound: f32,
         sample_rate: f32,
+        reflector: Option<Reflected>,
         list: Option<Listener>,
     ) -> Self {
         let dist = if let Some(x) = list {
             nalgebra::distance(&x.position, &position)
         } else {
             0.0
+        };
+        let refl = if let Some(r) = reflector {
+            r
+        } else {
+            Reflected::No
         };
         Self {
             position,
@@ -63,6 +74,7 @@ impl Source {
                 (sample_rate * room.diagonal() / speed_of_sound).ceil() as usize,
             ),
             dist,
+            reflector: refl,
         }
     }
     pub fn update_position(&mut self, position: Point3<f32>, listener: &Listener) {
@@ -106,6 +118,7 @@ fn test_bufs() {
         position: Point3::default(),
         orientation: Quaternion::default(),
         buffer: CircularDelayBuffer::new(max_delay),
+        reflector: Reflected::No,
         dist: 0.0,
     };
 
@@ -113,6 +126,7 @@ fn test_bufs() {
         position: Point3::default(),
         orientation: Quaternion::default(),
         buffer: CircularDelayBuffer::new(max_delay),
+        reflector: Reflected::No,
         dist: 0.0,
     };
 
@@ -120,6 +134,7 @@ fn test_bufs() {
         position: Point3::default(),
         orientation: Quaternion::default(),
         buffer: CircularDelayBuffer::new(max_delay),
+        reflector: Reflected::No,
         dist: 0.0,
     };
 
