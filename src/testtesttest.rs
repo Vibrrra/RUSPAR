@@ -1,16 +1,7 @@
-use std::cell::Ref;
-
 use crate::buffers::CircularDelayBuffer;
-use cpal::FromSample;
-use nalgebra::Const;
-use nalgebra::Isometry3;
-use nalgebra::OPoint;
-use nalgebra::Point3;
-use nalgebra::Quaternion;
-use nalgebra::Rotation3;
 use nalgebra::Vector3;
+use nalgebra::Quaternion;
 use num_traits::Zero;
-use protobuf::reflect;
 use indextree::Arena;
 use strum_macros::EnumIter;
 
@@ -47,14 +38,14 @@ impl Reflected {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct Room {
-    dimension: Point3<f32>,
+    dimension: Vector3<f32>,
 }
 
 #[allow(dead_code)]
 impl Room {
     fn new(width: f32, height: f32, length: f32) -> Self {
         Self {
-            dimension: Point3::new(width, height, length),
+            dimension: Vector3::new(width, height, length),
         }
     }
     fn diagonal(&self) -> f32 {
@@ -65,7 +56,7 @@ impl Room {
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct Source {
-    pub position: Point3<f32>,
+    pub position: Vector3<f32>,
     pub orientation: Quaternion<f32>,
     pub source_listener_orientation: Quaternion<f32>,
     pub buffer: CircularDelayBuffer,
@@ -76,8 +67,8 @@ pub struct Source {
 #[allow(dead_code)]
 impl Source {
     pub fn new(
-        position: Point3<f32>,
-        orientation: Quaternion<f32>,
+        position: Vector3<f32>,
+        orientation: Quaternion<f32>, 
         room: &Room,
         speed_of_sound: f32,
         sample_rate: f32,
@@ -86,8 +77,8 @@ impl Source {
     ) -> Self {
         let mut source_listener_orientation = Quaternion::zero();
         let dist = if let Some(x) = list {
-            source_listener_orientation = todo!();       
-            nalgebra::distance(&x.position, &position)
+            // source_listener_orientation = todo!();       
+            calc_distance(&x.position, &position)
         } else {
             0.0
         };
@@ -105,20 +96,20 @@ impl Source {
             ),
             dist,
             reflector: refl,
+            source_listener_orientation,
         }
     }
-    pub fn update_position(&mut self, position: Point3<f32>, listener: &Listener) {
+    pub fn update_position(&mut self, position: Vector3<f32>, listener: &Listener) {
         self.position = position;
-        self.dist = nalgebra::distance(&self.position, &listener.position);
-        self.buffer
-            .set_delay_time_samples(48000.0 * self.dist / 343.0f32);
+        self.dist = calc_distance(&self.position, &listener.position);
+        self.buffer.set_delay_time_samples(48000.0 * self.dist / 343.0f32);
     }
 }
 
 #[allow(dead_code)]
 #[derive(Debug, Default)]
 pub struct Listener {
-    pub position: Point3<f32>,
+    pub position: Vector3<f32>,
     pub orientation: Quaternion<f32>,
 }
 
@@ -132,7 +123,7 @@ struct ListenerSourceView {
 }
 impl ListenerSourceView {
     pub fn create_from(s: &Source, l: &Listener) -> Self {
-        let dist = nalgebra::distance(&s.position,&l.position);
+        let dist = calc_distance(&s.position,&l.position);
         todo!();
 
     }
@@ -207,7 +198,7 @@ fn test_bufs() {
     
     // Init things
     use indextree::Arena;
-    use nalgebra::Point3;
+    use nalgebra::Vector3;
     use num_traits::Zero;
 
     // use Listener;
@@ -219,42 +210,45 @@ fn test_bufs() {
         .round() as usize
         + 200;
     let mut lis = Listener {
-        position: Point3::default(),
+        position: Vector3::default(),
         orientation: Quaternion::zero(),
     };
 
     let mut s1 = Source {
-        position: Point3::default(),
+        position: Vector3::default(),
         orientation: Quaternion::default(),
         buffer: CircularDelayBuffer::new(max_delay),
         reflector: Reflected::No,
         dist: 0.0,
+        source_listener_orientation: Quaternion::zero(),
     };
 
     let mut s1_is_a = Source {
-        position: Point3::default(),
+        position: Vector3::default(),
         orientation: Quaternion::default(),
         buffer: CircularDelayBuffer::new(max_delay),
         reflector: Reflected::No,
         dist: 0.0,
+        source_listener_orientation: Quaternion::zero(),
     };
 
     let s1_is_ab = Source {
-        position: Point3::default(),
+        position: Vector3::default(),
         orientation: Quaternion::default(),
         buffer: CircularDelayBuffer::new(max_delay),
         reflector: Reflected::No,
         dist: 0.0,
+        source_listener_orientation: Quaternion::zero(),
     };
 
     // update position
-    lis.position = Point3::new(1.0, 1.5, 2.0);
-    s1.position = Point3::new(2.0, 1.5, 4.0);
-    s1.dist = nalgebra::distance(&lis.position, &s1.position);
+    lis.position = Vector3::<f32>::new(1.0, 1.5, 2.0);
+    s1.position = Vector3::<f32>::new(2.0, 1.5, 4.0);
+    s1.dist = calc_distance(&lis.position, &s1.position);
     s1.buffer
         .set_delay_time_samples(sample_rate * s1.dist / 343.0);
-    s1_is_a.position = Point3::new(-2.0, 1.5, 2.0);
-    s1_is_a.dist = nalgebra::distance(&lis.position, &s1_is_a.position);
+    s1_is_a.position = Vector3::new(-2.0, 1.5, 2.0);
+    s1_is_a.dist = calc_distance(&lis.position, &s1_is_a.position);
     s1_is_a
         .buffer
         .set_delay_time_samples(sample_rate * (s1_is_a.dist - s1.dist) / 343.0);
@@ -293,6 +287,13 @@ fn test_bufs() {
     //
 }
 
+// good ol' pythagoras
+fn calc_distance(v1: &Vector3<f32>, v2: &Vector3<f32>) -> f32 {
+    ((v1.x-v2.x).powi(2) + 
+     (v1.y-v2.y).powi(2) + 
+     (v1.z-v2.z).powi(2)).sqrt()
+}
+
 #[test]
 fn test_ism_creation() {
     let ism_order: usize = 3;
@@ -300,7 +301,7 @@ fn test_ism_creation() {
     let sample_rate: f32 = 48000.0;
     let room: Room = Room::new(4.0, 3.0, 5.0);
     let listener = Listener::default();
-    let ssrc: Source = Source::new(Point3::new(2.0, 1.0, 2.0), Quaternion::zero(), &room, speed_of_sound, sample_rate, None, Some(listener));
+    let ssrc: Source = Source::new(Vector3::new(2.0, 1.0, 2.0), Quaternion::zero(), &room, speed_of_sound, sample_rate, None, Some(listener));
 
     let src_list = generate_image_source_tree(vec![ssrc], &room, ism_order);
 
@@ -310,20 +311,10 @@ fn test_ism_creation() {
 }
 
 #[test]
-fn test_rot() {
-    // let ism_order: usize = 3;
-    // let speed_of_sound: f32 = 343.0;
-    // let sample_rate: f32 = 48000.0;
-    let room: Room = Room::new(4.0, 3.0, 5.0);
-    let s_rot = Rotation3::from_euler_angles(0.0,0.0,0.7854);
-    let s_pos = Point3::new(0.0f32, 1.0, 1.0);
-
-    let l_rot = Rotation3::from_euler_angles(0.0,0.0,0.7854);
-}
-
-#[test]
+// insanity check!
 fn test_vector3() {
-    let v1 = Vector3::new(1.0, 1.0, 1.0);
-    let v2 = Vector3::new(3.0, 3.0, 3.0);
-    println!("{:?}", v2-v1);
+    let v1 = Vector3::new(3.0, 4.0, 0.0);
+    let v2 = Vector3::new(0.0, 0.0, 0.0);
+    println!("{:?}", calc_distance(&v1, &v2));
 }
+
