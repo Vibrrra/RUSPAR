@@ -67,6 +67,7 @@ impl Room {
 pub struct Source {
     pub position: Point3<f32>,
     pub orientation: Quaternion<f32>,
+    pub source_listener_orientation: Quaternion<f32>,
     pub buffer: CircularDelayBuffer,
     pub dist: f32,
     pub reflector: Reflected,
@@ -81,9 +82,11 @@ impl Source {
         speed_of_sound: f32,
         sample_rate: f32,
         reflector: Option<Reflected>,
-        list: Option<Listener>,
+        list: Option<Listener>,        
     ) -> Self {
+        let mut source_listener_orientation = Quaternion::zero();
         let dist = if let Some(x) = list {
+            source_listener_orientation = todo!();       
             nalgebra::distance(&x.position, &position)
         } else {
             0.0
@@ -93,6 +96,7 @@ impl Source {
         } else {
             Reflected::No
         };
+        
         Self {
             position,
             orientation,
@@ -134,7 +138,12 @@ impl ListenerSourceView {
     }
 }
 
-
+struct AudioSceneHandle {
+    sources: Vec<Source>,
+    listenerView: Vec<ListenerSourceView>,
+    ims_order: usize,
+    
+}
 
 // calc ISMs
 pub fn generate_image_source_tree(sources: Vec<Source>, room: &Room, ism_order: usize) -> Vec<Source> {
@@ -300,7 +309,7 @@ fn test_ism_creation() {
     }
 }
 
-
+#[test]
 fn test_rot() {
     // let ism_order: usize = 3;
     // let speed_of_sound: f32 = 343.0;
@@ -310,7 +319,11 @@ fn test_rot() {
     let s_pos = Point3::new(0.0f32, 1.0, 1.0);
 
     let l_rot = Rotation3::from_euler_angles(0.0,0.0,0.7854);
-    let l_pos =  Point3::new(1.0f32, 1.0, 0.0);
+}
 
-    
+#[test]
+fn test_vector3() {
+    let v1 = Vector3::new(1.0, 1.0, 1.0);
+    let v2 = Vector3::new(3.0, 3.0, 3.0);
+    println!("{:?}", v2-v1);
 }

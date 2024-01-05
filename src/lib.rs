@@ -8,11 +8,11 @@ pub mod filter;
 pub mod image_source_method;
 pub mod mixingmatrix;
 pub mod osc;
-pub mod testtesttest;
-
 pub mod readwav;
 pub mod scene;
+pub mod scene_parser;
 pub mod server;
+pub mod testtesttest;
 use interoptopus::ffi_function;
 
 // use protobuf::ext;
