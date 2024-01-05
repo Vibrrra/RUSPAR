@@ -92,6 +92,20 @@ struct Listener {
     pub orientation: Quaternion<f32>,
 }
 
+// Experimental Source View for ISM
+#[allow(dead_code)]
+#[derive(Debug)]
+struct ListenerSourceView {
+
+}
+
+// calc ISMs
+pub fn generate_image_sources(source: &Source, room: &Room) {
+
+
+}
+
+
 #[cfg(test)]
 #[test]
 fn test_bufs() {
