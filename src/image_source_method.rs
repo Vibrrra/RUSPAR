@@ -44,6 +44,7 @@ pub struct Room {
     dimension: Vector3<f32>,
 }
 
+
 #[allow(dead_code)]
 impl Room {
     fn new(width: f32, height: f32, length: f32) -> Self {
@@ -158,6 +159,7 @@ pub struct SourceTrees {
     pub roots: Vec<NodeId>
 }
 
+// 
 pub fn create_source_tree(sources: Vec<Source>, room: &Room, ism_order: usize) -> SourceTrees {//(Arena<Source>, Vec<NodeId>) {
     
     let mut node_lists = Vec::new();
@@ -181,8 +183,7 @@ pub fn create_source_tree(sources: Vec<Source>, room: &Room, ism_order: usize) -
                     if current_source.reflector != boundary  {
                         let new_node = arena.new_node(create_ism(current_source, room, &boundary));
                         node_list[i].append(new_node, &mut arena);
-                        node_list.push(new_node);
-                        
+                        node_list.push(new_node);                        
                     }
                 }
             }
