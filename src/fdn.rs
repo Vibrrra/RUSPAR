@@ -1,6 +1,6 @@
 use crate::{
     buffers,
-    image_source_method::ISMRoom,
+    image_source_method::Room,
     mixingmatrix::{self, process_HDM12, process_HDM4, process_HDM8},
 };
 use biquad::{Biquad, Coefficients, DirectForm2Transposed};
@@ -71,7 +71,7 @@ impl FeedbackDelayNetwork {
     }
 }
 
-pub fn create_delay_line_lengths_from_room(room: ISMRoom) -> Vec<usize> {
+pub fn create_delay_line_lengths_from_room(room: Room) -> Vec<usize> {
     vec![0; 1]
 }
 

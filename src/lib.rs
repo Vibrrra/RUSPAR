@@ -5,14 +5,13 @@ pub mod buffers;
 pub mod convolver;
 pub mod fdn;
 pub mod filter;
-pub mod image_source_method;
 pub mod mixingmatrix;
 pub mod osc;
 pub mod readwav;
 pub mod scene;
 pub mod scene_parser;
 pub mod server;
-pub mod testtesttest;
+pub mod image_source_method;
 use interoptopus::ffi_function;
 
 // use protobuf::ext;

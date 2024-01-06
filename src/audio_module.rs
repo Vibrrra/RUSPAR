@@ -11,7 +11,7 @@ use crate::{
     convolver::Spatializer,
     fdn::{self, FeedbackDelayNetwork},
     filter::{BinauralFilter, FFTManager, FilterStorage, FilterTree},
-    image_source_method::ISMAcousticScene, buffers::CircularDelayBuffer, server::IsmMetaData,
+    buffers::CircularDelayBuffer, server::IsmMetaData,
 };
 
 //pub fn start_audio_thread(acoustic_scene: Arc<Mutex<ISMAcousticScene>>) {

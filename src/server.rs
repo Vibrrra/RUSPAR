@@ -2,7 +2,7 @@ use std::sync::{mpsc::Sender, Arc, Mutex};
 
 use crate::{
     audioSceneHandlerData::Scene_data, audio_module::start_audio_thread,
-    image_source_method::ISMAcousticScene, osc::OSCHandler,
+    osc::OSCHandler,
 };
 use nalgebra::{distance, OPoint, Point3};
 use protobuf::Message;
@@ -23,7 +23,7 @@ pub fn start_server(port: u32) -> ! {
 
     // config the engine hereo
 
-    let mut acoustic_scene: ISMAcousticScene = ISMAcousticScene::default();
+    // let mut acoustic_scene: ISMAcousticScene = ISMAcousticScene::default();
     // let acoustic_scene = Arc::new(Mutex::new(ISMAcousticScene::default()));
     //let mut scene_data = Scene_data::default();
     // maybe start audio module here
@@ -38,25 +38,25 @@ pub fn start_server(port: u32) -> ! {
 
         // parse byte string to protobuf struct
         let scene_data = Scene_data::parse_from_bytes(&byte_string[..]).unwrap();
-        acoustic_scene.update_from_psd(&scene_data);
-        match ism_meta_data_vector.try_lock() {
-            Ok(mut data) => {
+        // acoustic_scene.update_from_psd(&scene_data);
+        // match ism_meta_data_vector.try_lock() {
+        //     Ok(mut data) => {
                 
-                for i in 0..data.len() {
-                    data[i].dist = nalgebra::distance(
-                        &acoustic_scene.sound_sources[i].position,
-                        &acoustic_scene.listener.position,
-                    ) as f32;
+        //         for i in 0..data.len() {
+        //             data[i].dist = nalgebra::distance(
+        //                 &acoustic_scene.sound_sources[i].position,
+        //                 &acoustic_scene.listener.position,
+        //             ) as f32;
 
-                    // calc az el here - Andi-Chrissi-Lösung hier
+        //             // calc az el here - Andi-Chrissi-Lösung hier
                     
-                    data[i].az = 0.0;
-                    data[i].el = 0.0;
+        //             data[i].az = 0.0;
+        //             data[i].el = 0.0;
 
-                }
-            }
-            Err(_) => todo!(), // update_from_psd(&scene_data)
-        }
+        //         }
+        //     }
+        //     Err(_) => todo!(), // update_from_psd(&scene_data)
+        // }
 
         // Do something with scene;
         //
