@@ -10,7 +10,7 @@ use indextree::Arena;
 use strum_macros::EnumIter;
 
 // index ranges for image sources vectors
-static N_IS_INDEX_RANGES: [(usize, usize); 4] = [
+pub const N_IS_INDEX_RANGES: [(usize, usize); 4] = [
     (0, 1),
     (1, 7),
     (7, 37),
@@ -39,9 +39,9 @@ impl Reflected {
 }
 
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Room {
-    dimension: Vector3<f32>,
+    pub dimension: Vector3<f32>,
 }
 
 
@@ -57,13 +57,27 @@ impl Room {
     }
 }
 
+#[derive(Debug, Default, Clone, Copy)]
+pub struct SphericalCoordinates {
+    pub azimuth: f32,
+    pub elevation: f32
+}
+impl SphericalCoordinates {
+    pub fn new(azimuth: f32, elevation: f32) -> Self {
+        Self { azimuth, elevation}
+    }   
+}
+
+
+
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Source {
     pub position: Vector3<f32>,
     pub orientation: Quaternion<f32>,
-    pub source_listener_orientation: Quaternion<f32>,
-    pub buffer: CircularDelayBuffer,
+    pub source_listener_orientation: SphericalCoordinates,//Quaternion<f32>,
+    pub listener_source_orientation: SphericalCoordinates,
+    // pub buffer: CircularDelayBuffer,
     pub dist: f32,
     pub reflector: Reflected,
 }
@@ -79,7 +93,8 @@ impl Source {
         reflector: Option<Reflected>,
         list: Option<&Listener>,        
     ) -> Self {
-        let mut source_listener_orientation = Quaternion::zero();
+        let mut source_listener_orientation = SphericalCoordinates::default();//Quaternion::zero();
+        let mut listener_source_orientation = SphericalCoordinates::default();//Quaternion::zero();
         let dist = if let Some(x) = list {
             // source_listener_orientation = todo!();       
             calc_distance(&x.position, &position)
@@ -95,18 +110,19 @@ impl Source {
         Self {
             position,
             orientation,
-            buffer: CircularDelayBuffer::new(
-                (sample_rate * room.diagonal() / speed_of_sound).ceil() as usize,
-            ),
+            // buffer: CircularDelayBuffer::new(
+                // (sample_rate * room.diagonal() / speed_of_sound).ceil() as usize,
+            // ),
             dist,
             reflector: refl,
             source_listener_orientation,
+            listener_source_orientation
         }
     }
     pub fn update_position(&mut self, position: Vector3<f32>, listener: &Listener) {
         self.position = position;
         self.dist = calc_distance(&self.position, &listener.position);
-        self.buffer.set_delay_time_samples(48000.0 * self.dist / 343.0f32);
+        // self.buffer.set_delay_time_samples(48000.0 * self.dist / 343.0f32);
     }
 }
 
@@ -133,32 +149,21 @@ impl ListenerSourceView {
     }
 }
 
-pub struct AudioSceneHandle {
-    pub sources: Vec<Source>,
-    pub listenerView: Vec<ListenerSourceView>,
-    pub ims_order: usize,
-    
-}
-
-impl AudioSceneHandle {
-    pub fn update_source_vec(&mut self, pb_scene_data: &Scene_data) {
-        let pbs_transforms = &pb_scene_data.sources.transforms;
-        assert!(self.sources.len() != pbs_transforms.len()); //pb_scene_data.sources.0.unwrap().transforms.len());
-        for n in 0..self.sources.len() {
-            for order in 0..self.ims_order {
-
-            }
-            unimplemented!()
-        }
-    }
-}
-
+#[derive(Debug, Clone)]
 pub struct SourceTrees {
     pub arenas: Vec<Arena<Source>>,
-    node_lists: Vec<Vec<NodeId>>,
+    pub node_lists: Vec<Vec<NodeId>>,
     pub roots: Vec<NodeId>
 }
-
+impl SourceTrees {
+    pub fn create(number_of_sources: usize, ism_order: usize) -> Self {
+        let mut sources = Vec::new();
+        for i in 0 .. number_of_sources {
+            sources.push(Source::default());
+        }
+        create_source_tree(sources, &Room::default(), ism_order)
+    }
+}
 // 
 pub fn create_source_tree(sources: Vec<Source>, room: &Room, ism_order: usize) -> SourceTrees {//(Arena<Source>, Vec<NodeId>) {
     
@@ -196,8 +201,8 @@ pub fn create_source_tree(sources: Vec<Source>, room: &Room, ism_order: usize) -
     //(arena, node_list)
 }
 
-pub fn update_source_tree(source_trees: &mut SourceTrees, sources: Vec<Source>, room: &Room, ism_order: usize) {
-    let offset = is_per_model(ism_order, 6);
+pub fn update_source_tree(source_trees: &mut SourceTrees, sources: Vec<Source>, room: &Room) {
+    // let offset = is_per_model(ism_order, 6);
 
     assert!(source_trees.node_lists.len() == sources.len());
     assert!(source_trees.node_lists[0].len() == source_trees.arenas[0].count());
@@ -217,6 +222,27 @@ pub fn update_source_tree(source_trees: &mut SourceTrees, sources: Vec<Source>, 
                 },
             }
         }  
+    }
+}
+
+pub fn update_source_tree_from_roots(source_trees: &mut SourceTrees, room: &Room) {
+
+    for n in 0 .. source_trees.node_lists.len() {
+        for i in 0 .. source_trees.arenas.len() {
+
+            let parent_node = source_trees.arenas[n].get(source_trees.node_lists[n][i]).unwrap().parent();
+            match parent_node {
+                Some(pn) => {
+                    let parent_position: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = 
+                        source_trees.arenas[n].get(pn).unwrap().get().position;
+                    let current_node: &mut Source = source_trees.arenas[n].get_mut(source_trees.node_lists[n][i]).unwrap().get_mut();
+                    *current_node.position = *calc_ism_position(&parent_position, room, &current_node.reflector);
+                },
+                None => {
+
+                },
+            }
+        }
     }
 }
 // calc ISMs
@@ -289,108 +315,16 @@ fn is_per_order(order: f64, n_surfaces: f64) -> usize {
     ((n_surfaces) * (n_surfaces - 1f64).powf(order - 1f64)).floor() as usize
 }
 
-// TEEEEEESSSSSTS 
-#[cfg(test)]
-#[test]
-fn test_bufs() {
-    
-    // Init things
-    use indextree::Arena;
-    use nalgebra::Vector3;
-    use num_traits::Zero;
-
-    // use Listener;
-    let speed_of_sound: f32 = 343.0;
-    let sample_rate: f32 = 48000.0;
-    let room: [f32; 3] = [5.0, 3.0, 6.0];
-    let max_delay = (sample_rate * (room.iter().fold(0.0, |acc, x| acc + x.powi(2))).sqrt()
-        / speed_of_sound)
-        .round() as usize
-        + 200;
-    let mut lis = Listener {
-        position: Vector3::default(),
-        orientation: Quaternion::zero(),
-    };
-
-    let mut s1 = Source {
-        position: Vector3::default(),
-        orientation: Quaternion::default(),
-        buffer: CircularDelayBuffer::new(max_delay),
-        reflector: Reflected::No,
-        dist: 0.0,
-        source_listener_orientation: Quaternion::zero(),
-    };
-
-    let mut s1_is_a = Source {
-        position: Vector3::default(),
-        orientation: Quaternion::default(),
-        buffer: CircularDelayBuffer::new(max_delay),
-        reflector: Reflected::No,
-        dist: 0.0,
-        source_listener_orientation: Quaternion::zero(),
-    };
-
-    let s1_is_ab = Source {
-        position: Vector3::default(),
-        orientation: Quaternion::default(),
-        buffer: CircularDelayBuffer::new(max_delay),
-        reflector: Reflected::No,
-        dist: 0.0,
-        source_listener_orientation: Quaternion::zero(),
-    };
-
-    // update position
-    lis.position = Vector3::<f32>::new(1.0, 1.5, 2.0);
-    s1.position = Vector3::<f32>::new(2.0, 1.5, 4.0);
-    s1.dist = calc_distance(&lis.position, &s1.position);
-    s1.buffer
-        .set_delay_time_samples(sample_rate * s1.dist / 343.0);
-    s1_is_a.position = Vector3::new(-2.0, 1.5, 2.0);
-    s1_is_a.dist = calc_distance(&lis.position, &s1_is_a.position);
-    s1_is_a
-        .buffer
-        .set_delay_time_samples(sample_rate * (s1_is_a.dist - s1.dist) / 343.0);
-
-    let out: Vec<f32> = vec![0.0; 48000];
-    let mut input: Vec<f32> = out;
-    input[0] = 1.0;
-    let mut temp = Vec::new();
-    for i in 0..input.len() {
-        let mut sout = 0.0;
-        let sample = input[i];
-        sout = s1.buffer.read();
-        s1.buffer.write(sample);
-        let s1_out = s1_is_a.buffer.read();
-        s1_is_a.buffer.write(sout);
-        sout += s1_out;
-
-        if sout > 0.0 {
-            temp.push(i as f32);
-        }
-        // print!("{:?}|", sout);
-    }
-    println!("Pulses found at: {:?}", temp);
-    let arena = &mut Arena::new();
-    let mut node_ids = Vec::new();
-
-    let root = arena.new_node(s1);
-    node_ids.push(arena.new_node(s1_is_a));
-    node_ids.push(arena.new_node(s1_is_ab));
-
-    root.append(node_ids[0], arena);
-    node_ids[0].append(node_ids[1], arena);
-
-    //root.children(arena).for_each(|x| {dbg!(arena.get(x));});
-
-    //
-}
-
 // good ol' pythagoras
 fn calc_distance(v1: &Vector3<f32>, v2: &Vector3<f32>) -> f32 {
     ((v1.x-v2.x).powi(2) + 
      (v1.y-v2.y).powi(2) + 
      (v1.z-v2.z).powi(2)).sqrt()
 }
+
+
+// TEEEEEESSSSSTS 
+#[cfg(test)]
 
 #[test]
 fn test_ism_creation() {
@@ -440,7 +374,7 @@ fn test_ism_tree_update() {
     for i in src_tree.node_lists[0].iter().enumerate() {
         println!("Nr.: {}, {:?}", i.0, src_tree.arenas[0].get(*i.1).unwrap().get().position);
     }
-    update_source_tree(&mut src_tree, vec![ssrc2], &room, ism_order);
+    update_source_tree(&mut src_tree, vec![ssrc2], &room);
     
     for i in src_tree.node_lists[0].iter().enumerate() {
         println!("Nr.: {}, {:?}", i.0, src_tree.arenas[0].get(*i.1).unwrap().get().position);

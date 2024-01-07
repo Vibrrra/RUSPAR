@@ -3,6 +3,8 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     FrameCount, FromSample, Sample, SizedSample,
 };
+use indextree::{Arena, NodeId};
+use nalgebra::ComplexField;
 use std::sync::{mpsc::Receiver, Arc, Mutex};
 use std::thread;
 
@@ -11,11 +13,11 @@ use crate::{
     convolver::Spatializer,
     fdn::{self, FeedbackDelayNetwork},
     filter::{BinauralFilter, FFTManager, FilterStorage, FilterTree},
-    buffers::CircularDelayBuffer, server::IsmMetaData,
+    buffers::CircularDelayBuffer, server::IsmMetaData, image_source_method::{SourceTrees, N_IS_INDEX_RANGES},
 };
 
 //pub fn start_audio_thread(acoustic_scene: Arc<Mutex<ISMAcousticScene>>) {
-pub fn start_audio_thread(meta_data: Arc<Mutex<Vec<IsmMetaData>>>) {
+pub fn start_audio_thread(rx: Receiver<SourceTrees>, source_trees: SourceTrees) {
     //pub fn start_audio_thread(scene_data: Arc<Mutex<ISMAcousticScene>>) {
     thread::spawn(move || {
         let host = cpal::default_host();
@@ -24,34 +26,34 @@ pub fn start_audio_thread(meta_data: Arc<Mutex<Vec<IsmMetaData>>>) {
 
         let audio_thread_result = match output_config.sample_format() {
             cpal::SampleFormat::I8 => {
-                run::<i8>(&output_device, &output_config.into(), meta_data)
+                run::<i8>(&output_device, &output_config.into(), rx)
             }
             cpal::SampleFormat::I16 => {
-                run::<i16>(&output_device, &output_config.into(), meta_data)
+                run::<i16>(&output_device, &output_config.into(), rx)
             }
             cpal::SampleFormat::I32 => {
-                run::<i32>(&output_device, &output_config.into(), meta_data)
+                run::<i32>(&output_device, &output_config.into(), rx)
             }
             cpal::SampleFormat::I64 => {
-                run::<i64>(&output_device, &output_config.into(), meta_data)
+                run::<i64>(&output_device, &output_config.into(), rx)
             }
             cpal::SampleFormat::U8 => {
-                run::<u8>(&output_device, &output_config.into(), meta_data)
+                run::<u8>(&output_device, &output_config.into(), rx)
             }
             cpal::SampleFormat::U16 => {
-                run::<u16>(&output_device, &output_config.into(), meta_data)
+                run::<u16>(&output_device, &output_config.into(), rx)
             }
             cpal::SampleFormat::U32 => {
-                run::<u32>(&output_device, &output_config.into(), meta_data)
+                run::<u32>(&output_device, &output_config.into(), rx)
             }
             cpal::SampleFormat::U64 => {
-                run::<u64>(&output_device, &output_config.into(), meta_data)
+                run::<u64>(&output_device, &output_config.into(), rx)
             }
             cpal::SampleFormat::F32 => {
-                run::<f32>(&output_device, &output_config.into(), meta_data)
+                run::<f32>(&output_device, &output_config.into(), rx)
             }
             cpal::SampleFormat::F64 => {
-                run::<f64>(&output_device, &output_config.into(), meta_data)
+                run::<f64>(&output_device, &output_config.into(), rx)
             }
             sample_format => panic!("Unsupported sample format '{sample_format}'"),
         };
@@ -63,7 +65,8 @@ pub fn start_audio_thread(meta_data: Arc<Mutex<Vec<IsmMetaData>>>) {
 fn run<T>(
     devcice: &cpal::Device,
     config: &cpal::StreamConfig,
-    meta_data: Arc<Mutex<Vec<IsmMetaData>>>,
+    rx: Receiver<SourceTrees>,
+    
 ) -> Result<(), anyhow::Error>
 where
     T: SizedSample + FromSample<f32>,
@@ -88,13 +91,12 @@ where
     // let mut audio_scene = ISMAcousticScene::default();
     let ism_order = 2;
     let speed_of_sound = 343.0;
-    let ism_buffer_len = unsafe {
-     (sample_rate * 15.0 / speed_of_sound ).to_int_unchecked()    
-    };
+    let ism_buffer_len =  (sample_rate * 15.0 / speed_of_sound ).ceil() as usize;
 
-
-    let mut ism_buffers = vec![CircularDelayBuffer::new(ism_buffer_len);36];
-     
+    let n_sources=36;
+    // let mut ism_buffers = vec![CircularDelayBuffer::new(ism_buffer_len); n_sources];
+    let mut buffer_trees = create_buffer_trees(n_sources, ism_buffer_len, ism_order);
+    
     // let fdn = FeedbackDelayNetwork::new(n_delaylines, )
     // Create Stream
     let stream = devcice.build_output_stream(
@@ -102,19 +104,22 @@ where
         move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
             // read audio for every obejct.
             // collect
-            if let Ok(ism_data_vector) = meta_data.try_lock() {
-                ism_buffers[0].set_delay_time_samples(sample_rate * ism_data_vector[0].dist / speed_of_sound);
-                // set air absoprtion 
-            }
-            //} else {
-            
-            //};
-            for i in 0..n_sources {
-                // calc image n_sources
-                //todo!();
-                //spatializer.process(input, data, active_hrtfs[i], prev_hrtfs[i]);
-                //audio_process(data);
-            }
+            let source_trees = match rx.try_recv() {
+                Ok(data) => data,
+                Err(_) => todo!(),                
+            };
+
+            source_trees.arenas.iter()
+                                .zip(source_trees.node_lists.iter())
+                                .zip(buffer_trees.buffer_arenas.iter_mut().zip(buffer_trees.node_lists.iter()))
+                                .for_each(|((src_arena, src_node_list), (buffer_arena, buffer_node_list))| {
+                src_node_list.iter().zip(buffer_node_list.iter()).for_each(|(src_node_id, buffer_node_id)| {
+                    
+                    // updating buffer read-pointers. We could maybe already write audio into these if we are already iterating. maybe even more processing?
+                    let delay_time = src_arena.get(*src_node_id).unwrap().get().dist / speed_of_sound;
+                    buffer_arena.get_mut(*buffer_node_id).unwrap().get_mut().set_delay_time_ms(delay_time, sample_rate)
+                })
+            });            
         },
         error_callback,
         None,
@@ -132,4 +137,57 @@ where
 
     todo!();
     // UpdateEngine(scene_data);
+}
+
+#[derive(Debug)]
+pub struct BufferTree {
+    pub buffer_arenas: Vec<Arena<CircularDelayBuffer>>,
+    pub node_lists: Vec<Vec<NodeId>>
+}
+
+pub fn create_buffer_trees(n_sources: usize, buffer_length: usize, ism_order: usize) -> BufferTree { //} -> Vec<Arena<CircularDelayBuffer>>{
+    let mut buffer_arenas: Vec<Arena<CircularDelayBuffer>> = Vec::new();
+    let mut node_lists: Vec<Vec<indextree::NodeId>> = Vec::new();
+    for n in 0 .. n_sources {
+        let mut arena = indextree::Arena::new();
+        let mut node_list = Vec::new();
+        let root_buffer = arena.new_node(CircularDelayBuffer::new(buffer_length));
+        node_list.push(root_buffer);
+        for i in N_IS_INDEX_RANGES[0].0 .. N_IS_INDEX_RANGES[0].1 {
+                for _ in 0..6 {
+                    let parent_node = arena.get(node_list[i]).unwrap().get();
+                    let new_buffer = arena.new_node(CircularDelayBuffer::new(buffer_length));
+                    node_list[i].append(new_buffer, &mut arena);
+                    node_list.push(new_buffer);
+                }
+        }
+        
+        for order in 1..ism_order {
+            for i in N_IS_INDEX_RANGES[order].0 .. N_IS_INDEX_RANGES[order].1 {
+                    for _ in 0..5 {
+                        let parent_node = arena.get(node_list[i]).unwrap().get();
+                        let new_buffer = arena.new_node(CircularDelayBuffer::new(buffer_length));
+                        node_list[i].append(new_buffer, &mut arena);
+                        node_list.push(new_buffer);
+                    }
+            }
+        }
+        buffer_arenas.push(arena);
+        node_lists.push(node_list);
+    }
+    BufferTree {buffer_arenas, node_lists}
+}
+
+#[cfg(test)]
+#[test]
+fn test_buffer_tree() {
+    let ism_order = 1;
+    let n = 1; 
+    let bl = 5;
+    let bt = create_buffer_trees(n, bl, ism_order);
+
+    for i in bt.node_lists[0].iter().enumerate() {
+        println!("Nr: {}, {:?}", i.0, i.1)
+    }
+ 
 }
