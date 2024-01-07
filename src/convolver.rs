@@ -1,7 +1,7 @@
 
 use num_traits::Zero;
 use num_complex::Complex;
-use crate::filter::{FilterStorage, FFTManager, BinauralFilterType, MonoFilterType, BinauralFilter, MonoFilter};
+use crate::filter::{FilterStorage, FFTManager, BinauralFilterType, BinauralFilter};
 use std::f32::consts::PI;
 
 #[allow(unused)]
@@ -58,7 +58,7 @@ impl Spatializer {
         // fade_in.reverse();
         // init segmentation values        
         let n_segments_ds: usize = filter_storage.get_n_stereo_segments(BinauralFilterType::DirectSound);
-        let mut n_segments_total: usize = n_segments_ds;
+        let n_segments_total: usize = n_segments_ds;
       
         // init temporary buffers
         let overlap= vec![vec![0.0; n_points];2];

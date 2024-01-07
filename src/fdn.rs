@@ -1,12 +1,12 @@
 use crate::{
     buffers,
-    image_source_method::Room,
-    mixingmatrix::{self, process_HDM12, process_HDM4, process_HDM8},
+    mixingmatrix::process_hdm12,
 };
 use biquad::{Biquad, Coefficients, DirectForm2Transposed};
 // use crate::mixingmatrix;
 use cfg_if;
-use ndarray::Array2;
+
+#[allow(unused)]
 pub struct FeedbackDelayNetwork {
     delaylines: Vec<FDNLine>,
     delayline_inputs: Vec<f32>,
@@ -17,20 +17,20 @@ pub struct FeedbackDelayNetwork {
 
 impl FeedbackDelayNetwork {
     pub fn new(
-        N: usize,
+        n: usize,
         delay_line_lengths: Vec<usize>,
         biquad_coeff_vec: Vec<Coefficients<f32>>,
     ) -> Self {
         let mut delaylines = Vec::new();
-        for i in 0..N {
+        for i in 0..n {
             // delaylines.push(FDNLine::new(delay_line_lengths[i], biquad_coeff_vec[i]));
             delaylines.push(FDNLine::new(delay_line_lengths[i], biquad_coeff_vec[i]));
         }
         Self {
             delaylines,
-            delayline_inputs: vec![0.0; N],
-            delayline_outpus: vec![0.0; N],
-            matrix_inputs: vec![0.0; N],
+            delayline_inputs: vec![0.0; n],
+            delayline_outpus: vec![0.0; n],
+            matrix_inputs: vec![0.0; n],
             matrix_outputs: [0.0; 12],
             //mixing_matrix: create_hadamard(N),
             // mixing_matrix: todo()
@@ -50,31 +50,33 @@ impl FeedbackDelayNetwork {
             self.delayline_outpus[i] = self.delaylines[i].tick(self.delayline_inputs[i]);
         }
 
-        process_HDM12(&self.delayline_outpus, &mut self.matrix_outputs);
+        process_hdm12(&self.delayline_outpus, &mut self.matrix_outputs);
 
         // Mixing Matrix
         cfg_if::cfg_if! {
             if #[cfg(FDN4)] {
-                process_HDM4(self., self.matrix_outputs);
+                process_hdm4(self., self.matrix_outputs);
             } else if #[cfg(FDN8)] {
                 process_HDM8(self.matrix_inputs, self.matrix_outputs);
             } else if #[cfg(FDN12)] {
-                process_HDM12(self.matrix_inputs, self.matrix_outputs);
+                process_hdm12(self.matrix_inputs, self.matrix_outputs);
             } else if #[cfg(FDN16)] {
-                process_HDM16(self.matrix_inputs, self.matrix_outputs);
+                process_hdm16(self.matrix_inputs, self.matrix_outputs);
             } else if #[cfg(FDN24)] {
-                process_HDM24(self.matrix_inputs, self.matrix_outputs);
+                process_hdm24(self.matrix_inputs, self.matrix_outputs);
             } else if #[cfg(FDN32)] {
-                process_HDM32(self.matrix_inputs, self.matrix_outputs);
+                process_hdm32(self.matrix_inputs, self.matrix_outputs);
             }
         }
     }
 }
 
-pub fn create_delay_line_lengths_from_room(room: Room) -> Vec<usize> {
-    vec![0; 1]
-}
 
+// pub fn create_delay_line_lengths_from_room(room: Room) -> Vec<usize> {
+//     vec![0; 1]
+// }
+
+#[allow(unused)]
 struct FDNLine {
     delay_line_buffer: buffers::CircularDelayBuffer,
     filter: DirectForm2Transposed<f32>,
@@ -92,7 +94,7 @@ impl FDNLine {
         //     b2: biquad_coeffs.1[2],
         // };
         delay_line_buffer.set_delay_time_samples(length as f32);
-        let mut filter: DirectForm2Transposed<f32> =
+        let filter: DirectForm2Transposed<f32> =
             DirectForm2Transposed::<f32>::new(biquad_coeffs);
         Self {
             delay_line_buffer,

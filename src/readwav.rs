@@ -1,27 +1,24 @@
-use hound::{WavReader};
-use std::path::Path;
+use hound::WavReader;
+
+use std::{path::Path, io::BufReader, fs::File, vec};
 
 pub fn readwav_stereo(path: &str) -> Vec<Vec<f32>> {
-    let reader = WavReader::open(Path::new(path));
-    let mut reader = match reader {
+    let reader: Result<WavReader<BufReader<File>>, hound::Error> = WavReader::open(Path::new(path));
+    let mut reader: WavReader<BufReader<File>> = match reader {
         Ok(file) => file,
         Err(_) => panic!("cannot find file {:?}", path)
     };
-    let bit_depth = reader.spec().bits_per_sample;
-    
-
-
-
-    let sf = reader.spec().sample_format;
-    let channels = reader.spec().channels as usize;
-    let num_samples = reader.duration() as usize;
+    let bit_depth: u16 = reader.spec().bits_per_sample;
+    let sf: hound::SampleFormat = reader.spec().sample_format;
+    let channels: usize = reader.spec().channels as usize;
+    let num_samples: usize = reader.duration() as usize;
     let mut wavfile: Vec<Vec<f32>> = vec![vec![0.0; num_samples]; channels];
-    let max_val = (2.0f32).powf(bit_depth as f32 - 1.0) ; 
+    let max_val: f32 = (2.0f32).powf(bit_depth as f32 - 1.0) ; 
     match sf {
         hound::SampleFormat::Int => {
             for idx in 0..num_samples {
                 for ch in 0..channels {
-                    let sample = reader.samples::<i32>().next().unwrap();
+                    let sample: Result<i32, hound::Error> = reader.samples::<i32>().next().unwrap();
                     wavfile[ch][idx] = sample.unwrap() as f32/ max_val ; 
                 }
             }   
@@ -29,7 +26,7 @@ pub fn readwav_stereo(path: &str) -> Vec<Vec<f32>> {
         hound::SampleFormat::Float => {
             for idx in 0..num_samples {
                 for ch in 0..channels {
-                    let sample = reader.samples::<f32>().next().unwrap();
+                    let sample: Result<f32, hound::Error> = reader.samples::<f32>().next().unwrap();
                     wavfile[ch][idx] = sample.unwrap() as f32; 
                 }
             }
@@ -38,12 +35,12 @@ pub fn readwav_stereo(path: &str) -> Vec<Vec<f32>> {
     wavfile    
 }
 pub fn readwav_mono(path: &str) -> Vec<f32> {
-    let reader = WavReader::open(Path::new(path));
+    let reader: Result<WavReader<std::io::BufReader<std::fs::File>>, hound::Error> = WavReader::open(Path::new(path));
     let mut reader = match reader {
         Ok(file) => file,
         Err(_) => panic!("cannot find file {:?}", path)
     };
-    let bit_depth = reader.spec().bits_per_sample;
+    let bit_depth: u16 = reader.spec().bits_per_sample;
     
 
 
@@ -75,6 +72,59 @@ pub fn readwav_mono(path: &str) -> Vec<f32> {
     wavfile    
 }
 
+#[allow(unused)]
+pub struct AudioFileManager {
+    file_path: String,
+    wav_reader: WavReader<BufReader<File>>,
+    bit_depth: u16, // reader.spec().bits_per_sample;
+    sample_format: hound::SampleFormat, // reader.spec().sample_format;
+    channels: usize, // reader.spec().channels as usize;
+    num_samples: usize, 
+    max_val: f32,
+    buffer: Vec<f32>,  // (2.0f32).powf(bit_depth as f32 - 1.0) ; 
+}
+
+impl AudioFileManager {
+    pub fn new(file_path: String, buffer_size: usize) -> Self {
+        let wav_reader = match WavReader::open(Path::new(file_path.as_str())) {
+            Ok(wav_reader) => wav_reader,
+            Err(_) => panic!("Wav file could not be opened! Path: {:?}", file_path),
+        };
+        let bit_depth = wav_reader.spec().bits_per_sample;
+        let sample_format: hound::SampleFormat = wav_reader.spec().sample_format;
+        let channels = wav_reader.spec().channels as usize;
+        let num_samples = wav_reader.duration() as usize;
+        let max_val = (2.0f32).powf(bit_depth as f32 - 1.0) ; 
+        let buffer = vec![0.0; buffer_size];
+        Self {file_path, wav_reader, bit_depth, sample_format, channels, num_samples, max_val, buffer}
+    }
+
+    pub fn read_n_samples(&mut self, n: usize, out: &mut [f32]) {
+        for i in 0 .. n {
+            match self.sample_format {
+                hound::SampleFormat::Float => {
+                    //self.buffer.iter_mut().for_each(|x| {
+                        out[i] = self.read_sample_float();
+                    
+                },
+                hound::SampleFormat::Int => {
+                    //self.buffer.iter_mut().for_each(|x| {
+                        out[i] = self.read_sample_int();
+                }
+            }
+        }
+    }
+                
+    fn read_sample_int(&mut self) -> f32 {
+        let sample = self.wav_reader.samples::<i32>().next().unwrap().unwrap();
+        let sample: f32 = sample as f32 / self.max_val;
+        sample
+    }
+    fn read_sample_float(&mut self) -> f32 {
+        let sample = self.wav_reader.samples::<f32>().next().unwrap().unwrap();
+        sample
+    }
+}   
 
 #[cfg(test)]
 #[test]

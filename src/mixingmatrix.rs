@@ -36,7 +36,7 @@ pub const HAD12SCALE: f32 = 0.2887;
 pub const HAD8SCALE: f32 = 0.3536;
 pub const HAD4SCALE: f32 = 0.5;
 
-pub fn process_HDM32(i: &[f32], o: &mut [f32]) {
+pub fn process_hdm32(i: &[f32], o: &mut [f32]) {
     // let sf = ((1.0/(32.0f32).sqrt()));
     assert!(i.len() == 32);
     assert!(o.len() == 32);
@@ -756,7 +756,7 @@ pub fn process_HDM32(i: &[f32], o: &mut [f32]) {
     }
 }
 
-pub fn process_HDM24(i: &[f32], o: &mut [f32]) {
+pub fn process_hdm24(i: &[f32], o: &mut [f32]) {
     assert!(i.len() == 24);
     assert!(o.len() == 24);
 
@@ -1097,7 +1097,7 @@ pub fn process_HDM24(i: &[f32], o: &mut [f32]) {
     }
 }
 
-pub fn process_HDM16(i: &[f32], o: &mut [f32]) {
+pub fn process_hdm16(i: &[f32], o: &mut [f32]) {
     assert!(i.len() == 16);
     assert!(o.len() == 16);
     o[0] = i[0]
@@ -1203,7 +1203,7 @@ pub fn process_HDM16(i: &[f32], o: &mut [f32]) {
         *s *= HAD16SCALE;
     }
 }
-pub fn process_HDM12(i: &[f32], o: &mut [f32; 12]) {
+pub fn process_hdm12(i: &[f32], o: &mut [f32; 12]) {
     assert!(i.len() == 12);
     assert!(o.len() == 12);
     o[0] = i[0] + i[1] + i[2] + i[3] + i[4] + i[5] + i[6] + i[7] + i[8] + i[9] + i[10] + i[11];
@@ -1222,7 +1222,7 @@ pub fn process_HDM12(i: &[f32], o: &mut [f32; 12]) {
         *s *= HAD12SCALE;
     }
 }
-pub fn process_HDM8(i: &[f32], o: &mut [f32]) {
+pub fn process_hdm8(i: &[f32], o: &mut [f32]) {
     assert!(i.len() == 8);
     assert!(o.len() == 8);
     o[0] = i[0] + i[1] + i[2] + i[3] + i[4] + i[5] + i[6] + i[7];
@@ -1239,7 +1239,7 @@ pub fn process_HDM8(i: &[f32], o: &mut [f32]) {
     }
 }
 
-pub fn process_HDM4(i: &[f32], o: &mut [f32]) {
+pub fn process_hdm4(i: &[f32], o: &mut [f32]) {
     assert!(i.len() == 4);
     assert!(o.len() == 4);
     o[0] = i[0] + i[1] + i[2] + i[3];

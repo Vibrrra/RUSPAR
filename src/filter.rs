@@ -241,7 +241,7 @@ impl Debug for ControlType {
     }  
 }
 
-
+#[allow(unused)]
 pub struct FilterStorage {
     storage: HashMap<usize, BinauralFilter,BuildHasherDefault<NoHashHasher<usize>>>,
     available: bool,
@@ -319,7 +319,7 @@ impl FilterStorage {
 
 
 impl FilterTree {
-    pub fn find_closest_stereo_filter_angle(&self, filter_type: BinauralFilterType, azimuth: f32, elevation: f32) -> usize {
+    pub fn find_closest_stereo_filter_angle(&self, azimuth: f32, elevation: f32) -> usize {
         let id: usize = *self.angles.nearest(&[azimuth, elevation], 1, &kdtree::distance::squared_euclidean).unwrap()[0].1; //[1].1                                            
         id
     }

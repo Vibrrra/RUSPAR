@@ -8,7 +8,7 @@ pub mod filter;
 pub mod mixingmatrix;
 pub mod osc;
 pub mod readwav;
-pub mod scene;      
+//pub mod scene;      
 pub mod scene_parser;
 pub mod server;
 pub mod image_source_method;

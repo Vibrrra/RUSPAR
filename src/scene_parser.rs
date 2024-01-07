@@ -5,8 +5,8 @@ use crate::image_source_method::{SourceTrees, Room, update_source_tree_from_root
 
 pub fn update_scene(scene: &Scene_data, source_trees: &mut SourceTrees) {
     
-    scene.sources.transforms.iter().zip(source_trees.roots.iter()).zip(source_trees.arenas.iter_mut()).for_each(|((transform, nodeId), arena)| {
-        let src = arena.get_mut(*nodeId).unwrap().get_mut();
+    scene.sources.transforms.iter().zip(source_trees.roots.iter()).zip(source_trees.arenas.iter_mut()).for_each(|((transform, node_id), arena)| {
+        let src = arena.get_mut(*node_id).unwrap().get_mut();
         src.position.x = transform.position.x;  
         src.position.y = transform.position.y;  
         src.position.z = transform.position.z;  

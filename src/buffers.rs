@@ -24,6 +24,7 @@ impl CircularDelayBuffer {
         self.rb.lin_interp_f32(self.rp - 1.0)
     }
 
+    #[allow(unused)]
     fn read_lin_interp(&self, index: f32) -> f32 {
         self.rb.lin_interp_f32(index)
     }

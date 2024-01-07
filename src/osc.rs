@@ -5,11 +5,11 @@ use rosc::OscPacket;
 
 
 
-pub enum OSC_channel_type {
+pub enum OscChannelType {
     SceneData(String),
-    TransportCmd(Transport_Cmd_Type)
+    TransportCmd(TransportCmdType)
 }
-pub enum Transport_Cmd_Type {
+pub enum TransportCmdType {
     Play(String),
     Pause(String),
     Mute(String),
@@ -18,6 +18,7 @@ pub enum Transport_Cmd_Type {
 }
 
 
+#[allow(unused)]
 pub struct OSCHandler {   
    address: SocketAddrV4,
    sock: UdpSocket,
@@ -41,7 +42,7 @@ impl OSCHandler {
 
     pub fn try_recv(&mut self) -> Vec<u8> {
         match self.sock.recv_from(&mut self.buf) {
-            Ok((size, addr)) => {
+            Ok((size, _addr)) => {
                 let (_, osc_packet) = rosc::decoder::decode_udp(&self.buf[..size]).unwrap();
                 let byte_string: Vec<u8> = OSCHandler::handle_osc_packet(osc_packet);
                 byte_string 
@@ -53,7 +54,7 @@ impl OSCHandler {
 
     fn handle_osc_packet(packet: OscPacket) -> Vec<u8> {
         match packet {
-            OscPacket::Bundle(bundle) => panic!("OSC Pcket of type Bundle not (yet) supported!"),
+            OscPacket::Bundle(_bundle) => panic!("OSC Pcket of type Bundle not (yet) supported!"),
             OscPacket::Message(message) => {
                 message.args[0].clone().blob().expect("Expected OscMessage found None")               
             },

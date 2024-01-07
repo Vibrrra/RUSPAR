@@ -1,23 +1,19 @@
 use cpal::{
     self,
-    traits::{DeviceTrait, HostTrait, StreamTrait},
-    FrameCount, FromSample, Sample, SizedSample,
+    traits::{DeviceTrait, HostTrait, StreamTrait}, FromSample, Sample, SizedSample,
 };
 use indextree::{Arena, NodeId};
-use nalgebra::ComplexField;
-use std::sync::{mpsc::Receiver, Arc, Mutex};
+use std::sync::mpsc::Receiver;
 use std::thread;
 
 use crate::{
-    audioSceneHandlerData::Scene_data,
     convolver::Spatializer,
-    fdn::{self, FeedbackDelayNetwork},
-    filter::{BinauralFilter, FFTManager, FilterStorage, FilterTree},
-    buffers::CircularDelayBuffer, server::IsmMetaData, image_source_method::{SourceTrees, N_IS_INDEX_RANGES},
+    filter::{BinauralFilter, FFTManager, FilterStorage},
+    buffers::CircularDelayBuffer, image_source_method::{SourceTrees, N_IS_INDEX_RANGES}, readwav::AudioFileManager,
 };
 
 //pub fn start_audio_thread(acoustic_scene: Arc<Mutex<ISMAcousticScene>>) {
-pub fn start_audio_thread(rx: Receiver<SourceTrees>, source_trees: SourceTrees) {
+pub fn start_audio_thread(rx: Receiver<SourceTrees>, _source_trees: SourceTrees) {
     //pub fn start_audio_thread(scene_data: Arc<Mutex<ISMAcousticScene>>) {
     thread::spawn(move || {
         let host = cpal::default_host();
@@ -97,29 +93,44 @@ where
     // let mut ism_buffers = vec![CircularDelayBuffer::new(ism_buffer_len); n_sources];
     let mut buffer_trees = create_buffer_trees(n_sources, ism_buffer_len, ism_order);
     
+    let mut input_buffer = vec![vec![0.0; buffer_size];n_sources];
+    let mut audio_file_managers = vec![AudioFileManager::new("".to_string(), buffer_size)];
     // let fdn = FeedbackDelayNetwork::new(n_delaylines, )
     // Create Stream
     let stream = devcice.build_output_stream(
         config,
         move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-            // read audio for every obejct.
-            // collect
+            
+            // Receive Updates
             let source_trees = match rx.try_recv() {
                 Ok(data) => data,
                 Err(_) => todo!(),                
             };
 
+            // Update 
             source_trees.arenas.iter()
                                 .zip(source_trees.node_lists.iter())
+                                .enumerate()
                                 .zip(buffer_trees.buffer_arenas.iter_mut().zip(buffer_trees.node_lists.iter()))
-                                .for_each(|((src_arena, src_node_list), (buffer_arena, buffer_node_list))| {
+                                .for_each(|((n,(src_arena, src_node_list)), (buffer_arena, buffer_node_list))| {
                 src_node_list.iter().zip(buffer_node_list.iter()).for_each(|(src_node_id, buffer_node_id)| {
                     
                     // updating buffer read-pointers. We could maybe already write audio into these if we are already iterating. maybe even more processing?
                     let delay_time = src_arena.get(*src_node_id).unwrap().get().dist / speed_of_sound;
-                    buffer_arena.get_mut(*buffer_node_id).unwrap().get_mut().set_delay_time_ms(delay_time, sample_rate)
+                    buffer_arena.get_mut(*buffer_node_id).unwrap().get_mut().set_delay_time_ms(delay_time, sample_rate);
                 })
-            });            
+            });   
+
+            // read audio in
+            for n in 0 .. source_trees.roots.len() {
+                audio_file_managers[n].read_n_samples(buffer_size, &mut input_buffer[n][0..] );
+            }         
+
+            //  Process everything here ...
+            //    ...
+            //    ... 
+            //    ...
+            todo!()
         },
         error_callback,
         None,

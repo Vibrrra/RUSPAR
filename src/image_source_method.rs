@@ -1,10 +1,6 @@
-use crate::audioSceneHandlerData::Scene_data;
-use crate::audioSceneHandlerData::Transform;
-use crate::buffers::CircularDelayBuffer;
 use indextree::NodeId;
 use nalgebra::Vector3;
 use nalgebra::Quaternion;
-use nalgebra::zero;
 use num_traits::Zero;
 use indextree::Arena;
 use strum_macros::EnumIter;
@@ -82,6 +78,7 @@ pub struct Source {
     pub reflector: Reflected,
 }
 
+#[allow(unused)]
 #[allow(dead_code)]
 impl Source {
     pub fn new(
@@ -93,8 +90,8 @@ impl Source {
         reflector: Option<Reflected>,
         list: Option<&Listener>,        
     ) -> Self {
-        let mut source_listener_orientation = SphericalCoordinates::default();//Quaternion::zero();
-        let mut listener_source_orientation = SphericalCoordinates::default();//Quaternion::zero();
+        let source_listener_orientation = SphericalCoordinates::default();//Quaternion::zero();
+        let listener_source_orientation = SphericalCoordinates::default();//Quaternion::zero();
         let dist = if let Some(x) = list {
             // source_listener_orientation = todo!();       
             calc_distance(&x.position, &position)
@@ -133,32 +130,17 @@ pub struct Listener {
     pub orientation: Quaternion<f32>,
 }
 
-// Experimental Source View for ISM
-#[allow(dead_code)]
-#[derive(Debug, Default)]
-struct ListenerSourceView {
-    dist: f32,
-    az: f32,
-    el: f32
-}
-impl ListenerSourceView {
-    pub fn create_from(s: &Source, l: &Listener) -> Self {
-        let dist = calc_distance(&s.position,&l.position);
-        todo!();
-
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct SourceTrees {
     pub arenas: Vec<Arena<Source>>,
     pub node_lists: Vec<Vec<NodeId>>,
     pub roots: Vec<NodeId>
-}
+}           
 impl SourceTrees {
     pub fn create(number_of_sources: usize, ism_order: usize) -> Self {
         let mut sources = Vec::new();
-        for i in 0 .. number_of_sources {
+        for _ in 0 .. number_of_sources {
             sources.push(Source::default());
         }
         create_source_tree(sources, &Room::default(), ism_order)
@@ -246,28 +228,7 @@ pub fn update_source_tree_from_roots(source_trees: &mut SourceTrees, room: &Room
     }
 }
 // calc ISMs
-pub fn generate_image_source_vec(sources: Vec<Source>, room: &Room, ism_order: usize) -> Vec<Source> {
-    
-    let mut source_list: Vec<Source> = Vec::new();
-    let mut current_ism_order: usize = 1;
-    for n in 0..sources.len() {
-        
-        // Add source to list! 
-        source_list.push(sources[n].clone());
-        
-        // Calc image sources
-        for order in 0..ism_order {
-            for i in N_IS_INDEX_RANGES[order].0 .. N_IS_INDEX_RANGES[order].1 {
-                
-                for boundary in Reflected::VALUES {
-                    if source_list[i].reflector != boundary {
-                        source_list.push(create_ism(&source_list[i], room, &boundary));
-                    }
-                }
-            }
-        }
-    };    source_list
-}
+
 
 
 // This function creates an image source from reflecting a source
@@ -302,7 +263,9 @@ fn calc_ism_position(source_position: &Vector3<f32>, r: &Room, b: &Reflected) ->
     position
 }
 
+
 // helper functions
+#[allow(unused)]
 fn is_per_model(maxorder: usize, n_surfaces: usize) -> usize {
     let mut n_ism: usize = 0;
     for i in 1..=maxorder {
@@ -311,11 +274,13 @@ fn is_per_model(maxorder: usize, n_surfaces: usize) -> usize {
     n_ism
 }
 
+#[allow(unused)]
 fn is_per_order(order: f64, n_surfaces: f64) -> usize {
     ((n_surfaces) * (n_surfaces - 1f64).powf(order - 1f64)).floor() as usize
 }
 
 // good ol' pythagoras
+#[allow(unused)]
 fn calc_distance(v1: &Vector3<f32>, v2: &Vector3<f32>) -> f32 {
     ((v1.x-v2.x).powi(2) + 
      (v1.y-v2.y).powi(2) + 
@@ -326,21 +291,7 @@ fn calc_distance(v1: &Vector3<f32>, v2: &Vector3<f32>) -> f32 {
 // TEEEEEESSSSSTS 
 #[cfg(test)]
 
-#[test]
-fn test_ism_creation() {
-    let ism_order: usize = 1;
-    let speed_of_sound: f32 = 343.0;
-    let sample_rate: f32 = 48000.0;
-    let room: Room = Room::new(4.0, 3.0, 5.0);
-    let listener = Listener::default();
-    let ssrc: Source = Source::new(Vector3::new(2.0, 1.0, 2.0), Quaternion::zero(), &room, speed_of_sound, sample_rate, None, Some(&listener));
 
-    let src_list = generate_image_source_vec(vec![ssrc], &room, ism_order);
-
-    for i in src_list.iter().enumerate() {
-        println!("Nr.: {}, {:?}", i.0, i.1.position);
-    }
-}
 #[test]
 fn test_ism_tree_creation() {
     let ism_order: usize = 1;
@@ -403,9 +354,4 @@ fn test_vec_and_table() {
     v.push(1); 
     v.push(1); 
     print!("Length of Vec: {}", v.len());
-}
-
-#[test]
-fn test_array_as_buff() {
-    let a = [0.0; 13000];
 }
