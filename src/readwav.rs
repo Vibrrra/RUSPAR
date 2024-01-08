@@ -3,6 +3,8 @@ use hound::WavReader;
 
 use std::{path::Path, io::BufReader, fs::File, vec};
 
+use crate::buffers::CircularDelayBuffer;
+
 pub fn readwav_stereo(path: &str) -> Vec<Vec<f32>> {
     let reader: Result<WavReader<BufReader<File>>, hound::Error> = WavReader::open(Path::new(path));
     let mut reader: WavReader<BufReader<File>> = match reader {
@@ -82,7 +84,7 @@ pub struct AudioFileManager {
     channels: usize, // reader.spec().channels as usize;
     num_samples: usize, 
     max_val: f32,
-    buffer: BMRingBuf<f32>,  // (2.0f32).powf(bit_depth as f32 - 1.0) ; 
+    pub buffer: CircularDelayBuffer<f32>,  // (2.0f32).powf(bit_depth as f32 - 1.0) ; 
 }
 
 impl AudioFileManager {
@@ -96,13 +98,13 @@ impl AudioFileManager {
         let channels = wav_reader.spec().channels as usize;
         let num_samples = wav_reader.duration() as usize;
         let max_val = (2.0f32).powf(bit_depth as f32 - 1.0);
-        let mut buffer = BMRingBuf::from_len(num_samples);
+        let mut buffer = CircularDelayBuffer::new(num_samples);
         match sample_format {
             hound::SampleFormat::Float => {
                 wav_reader.samples::<f32>().step_by(channels).enumerate().for_each(|(n, sample_result)| {
                     match sample_result {
                         Ok(sample) => {
-                            buffer[n as isize] = sample;
+                            buffer.write(sample);
                         },
                         Err(_) => {},
                     }
@@ -112,7 +114,7 @@ impl AudioFileManager {
                 wav_reader.samples::<i32>().step_by(channels).enumerate().for_each(|(n, sample_result)| {
                     match sample_result {
                         Ok(sample) => {
-                            buffer[n as isize] = sample as f32 / max_val;
+                            buffer.write(sample as f32 / max_val);
                         },
                         Err(_) => {},
                     }

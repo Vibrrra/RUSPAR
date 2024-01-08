@@ -7,6 +7,7 @@ pub mod fdn;
 pub mod filter;
 pub mod mixingmatrix;
 pub mod osc;
+pub mod delaylines;
 pub mod readwav;
 //pub mod scene;      
 pub mod scene_parser;

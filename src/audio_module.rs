@@ -9,7 +9,7 @@ use std::thread;
 use crate::{
     convolver::Spatializer,
     filter::{BinauralFilter, FFTManager, FilterStorage},
-    buffers::CircularDelayBuffer, image_source_method::{SourceTrees, N_IS_INDEX_RANGES}, readwav::AudioFileManager, config::{MAX_SOURCES, audio_file_list, C},
+    buffers::CircularDelayBuffer, image_source_method::{SourceTrees, N_IS_INDEX_RANGES}, readwav::AudioFileManager, config::{MAX_SOURCES, audio_file_list, C}, delaylines::DelayLine,
 };
 
 //pub fn start_audio_thread(acoustic_scene: Arc<Mutex<ISMAcousticScene>>) {
@@ -92,6 +92,7 @@ where
     let mut buffer_trees: BufferTree = create_buffer_trees(MAX_SOURCES, ism_buffer_len, ism_order);
     let mut input_buffer: Vec<Vec<f32>> = vec![vec![0.0f32; buffer_size];MAX_SOURCES];
     let mut ism_output_buffers: Vec<Vec<f32>> = vec![vec![0.0f32; buffer_size];MAX_SOURCES];
+    let mut ism_delay_lines: Vec<DelayLine> = vec![DelayLine::new(ism_buffer_len); MAX_SOURCES];
     let mut audio_file_managers: Vec<AudioFileManager> = Vec::new();
     let mut n_active_sources = 1usize;
     for i in 0 .. MAX_SOURCES {
@@ -136,11 +137,12 @@ where
             
                 unimplemented!();
             todo!("Abstract Delay Lines!");    
-            (0..n_active_sources).into_iter().zip(ism_output_buffers.iter_mut()).for_each(|(n, out_buffer)|{
-                for i in 0..buffer_size {
-                    out_buffer.write(air_attenuation_filter.process(input_buffer[n].read()));
-                    input_buffer[n].write(audio_file_managers[n]);
-                }
+            (0..n_active_sources).into_iter()
+                                .zip(ism_output_buffers.iter_mut())
+                                .for_each(|(n, out_buffer)|{
+                out_buffer.iter_mut().for_each(|x|{
+                    *x = ism_delay_lines[n].process(audio_file_managers[n].buffer.read())
+                });
             });
                 
                 // ism_output_buffer[n];

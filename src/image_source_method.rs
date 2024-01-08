@@ -294,7 +294,7 @@ fn calc_distance(v1: &Vector3<f32>, v2: &Vector3<f32>) -> f32 {
 
 #[test]
 fn test_ism_tree_creation() {
-    let ism_order: usize = 1;
+    let ism_order: usize = 3;
     let speed_of_sound: f32 = 343.0;
     let sample_rate: f32 = 48000.0;
     let room: Room = Room::new(4.0, 3.0, 5.0);
