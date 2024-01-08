@@ -12,6 +12,7 @@ pub mod readwav;
 pub mod scene_parser;
 pub mod server;
 pub mod image_source_method;
+pub mod config;
 use interoptopus::ffi_function;
 
 // use protobuf::ext;

@@ -1,3 +1,4 @@
+use bit_mask_ring_buf::BMRingBuf;
 use hound::WavReader;
 
 use std::{path::Path, io::BufReader, fs::File, vec};
@@ -81,12 +82,12 @@ pub struct AudioFileManager {
     channels: usize, // reader.spec().channels as usize;
     num_samples: usize, 
     max_val: f32,
-    buffer: Vec<f32>,  // (2.0f32).powf(bit_depth as f32 - 1.0) ; 
+    buffer: BMRingBuf<f32>,  // (2.0f32).powf(bit_depth as f32 - 1.0) ; 
 }
 
 impl AudioFileManager {
     pub fn new(file_path: String, buffer_size: usize) -> Self {
-        let wav_reader = match WavReader::open(Path::new(file_path.as_str())) {
+        let mut wav_reader = match WavReader::open(Path::new(file_path.as_str())) {
             Ok(wav_reader) => wav_reader,
             Err(_) => panic!("Wav file could not be opened! Path: {:?}", file_path),
         };
@@ -94,8 +95,30 @@ impl AudioFileManager {
         let sample_format: hound::SampleFormat = wav_reader.spec().sample_format;
         let channels = wav_reader.spec().channels as usize;
         let num_samples = wav_reader.duration() as usize;
-        let max_val = (2.0f32).powf(bit_depth as f32 - 1.0) ; 
-        let buffer = vec![0.0; buffer_size];
+        let max_val = (2.0f32).powf(bit_depth as f32 - 1.0);
+        let mut buffer = BMRingBuf::from_len(num_samples);
+        match sample_format {
+            hound::SampleFormat::Float => {
+                wav_reader.samples::<f32>().step_by(channels).enumerate().for_each(|(n, sample_result)| {
+                    match sample_result {
+                        Ok(sample) => {
+                            buffer[n as isize] = sample;
+                        },
+                        Err(_) => {},
+                    }
+                })
+            },
+            hound::SampleFormat::Int => {
+                wav_reader.samples::<i32>().step_by(channels).enumerate().for_each(|(n, sample_result)| {
+                    match sample_result {
+                        Ok(sample) => {
+                            buffer[n as isize] = sample as f32 / max_val;
+                        },
+                        Err(_) => {},
+                    }
+                })
+            }
+        }        
         Self {file_path, wav_reader, bit_depth, sample_format, channels, num_samples, max_val, buffer}
     }
 

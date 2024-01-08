@@ -9,7 +9,7 @@ use std::thread;
 use crate::{
     convolver::Spatializer,
     filter::{BinauralFilter, FFTManager, FilterStorage},
-    buffers::CircularDelayBuffer, image_source_method::{SourceTrees, N_IS_INDEX_RANGES}, readwav::AudioFileManager,
+    buffers::CircularDelayBuffer, image_source_method::{SourceTrees, N_IS_INDEX_RANGES}, readwav::AudioFileManager, config::{MAX_SOURCES, audio_file_list, C},
 };
 
 //pub fn start_audio_thread(acoustic_scene: Arc<Mutex<ISMAcousticScene>>) {
@@ -82,20 +82,21 @@ where
     let mut spatializer = Spatializer::new(buffer_size, fft_manager, &hrtf_storage);
     let prev_hrtfs: Vec<&BinauralFilter> = Vec::new();
     let active_hrtfs: Vec<&BinauralFilter> = Vec::new();
-    let mut n_sources = 0;
 
     // let mut audio_scene = ISMAcousticScene::default();
     let ism_order = 2;
-    let speed_of_sound = 343.0;
-    let ism_buffer_len =  (sample_rate * 15.0 / speed_of_sound ).ceil() as usize;
+    // let speed_of_sound = 343.0;
+    let ism_buffer_len =  (sample_rate * 15.0 / C ).ceil() as usize;
 
-    let n_sources=36;
     // let mut ism_buffers = vec![CircularDelayBuffer::new(ism_buffer_len); n_sources];
-    let mut buffer_trees = create_buffer_trees(n_sources, ism_buffer_len, ism_order);
+    let mut buffer_trees = create_buffer_trees(MAX_SOURCES, ism_buffer_len, ism_order);
+    let mut input_buffer = vec![vec![0.0; buffer_size];MAX_SOURCES];
     
-    let mut input_buffer = vec![vec![0.0; buffer_size];n_sources];
-    let mut audio_file_managers = vec![AudioFileManager::new("".to_string(), buffer_size)];
-    // let fdn = FeedbackDelayNetwork::new(n_delaylines, )
+    let mut audio_file_managers = Vec::new();
+    for i in 0 .. MAX_SOURCES {
+        audio_file_managers.push( AudioFileManager::new(audio_file_list[i].to_string(), buffer_size));
+    }
+
     // Create Stream
     let stream = devcice.build_output_stream(
         config,
@@ -116,7 +117,7 @@ where
                 src_node_list.iter().zip(buffer_node_list.iter()).for_each(|(src_node_id, buffer_node_id)| {
                     
                     // updating buffer read-pointers. We could maybe already write audio into these if we are already iterating. maybe even more processing?
-                    let delay_time = src_arena.get(*src_node_id).unwrap().get().dist / speed_of_sound;
+                    let delay_time = src_arena.get(*src_node_id).unwrap().get().dist / C;
                     buffer_arena.get_mut(*buffer_node_id).unwrap().get_mut().set_delay_time_ms(delay_time, sample_rate);
                 })
             });   
