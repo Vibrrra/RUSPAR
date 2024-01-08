@@ -89,14 +89,14 @@ where
     let ism_buffer_len =  (sample_rate * 15.0 / C ).ceil() as usize;
 
     // let mut ism_buffers = vec![CircularDelayBuffer::new(ism_buffer_len); n_sources];
-    let mut buffer_trees = create_buffer_trees(MAX_SOURCES, ism_buffer_len, ism_order);
-    let mut input_buffer = vec![vec![0.0; buffer_size];MAX_SOURCES];
-    
-    let mut audio_file_managers = Vec::new();
+    let mut buffer_trees: BufferTree = create_buffer_trees(MAX_SOURCES, ism_buffer_len, ism_order);
+    let mut input_buffer: Vec<Vec<f32>> = vec![vec![0.0f32; buffer_size];MAX_SOURCES];
+    let mut ism_output_buffers: Vec<Vec<f32>> = vec![vec![0.0f32; buffer_size];MAX_SOURCES];
+    let mut audio_file_managers: Vec<AudioFileManager> = Vec::new();
+    let mut n_active_sources = 1usize;
     for i in 0 .. MAX_SOURCES {
         audio_file_managers.push( AudioFileManager::new(audio_file_list[i].to_string(), buffer_size));
     }
-
     // Create Stream
     let stream = devcice.build_output_stream(
         config,
@@ -104,11 +104,14 @@ where
             
             // Receive Updates
             let source_trees = match rx.try_recv() {
-                Ok(data) => data,
+                Ok(data) => {
+                    n_active_sources = data.roots.len();
+                    data
+                },
                 Err(_) => todo!(),                
             };
 
-            // Update 
+            // Update ISM and probably (FDN)
             source_trees.arenas.iter()
                                 .zip(source_trees.node_lists.iter())
                                 .enumerate()
@@ -122,12 +125,26 @@ where
                 })
             });   
 
-            // read audio in
-            for n in 0 .. source_trees.roots.len() {
-                audio_file_managers[n].read_n_samples(buffer_size, &mut input_buffer[n][0..] );
-            }         
+            // read audio in - Probably useless as audio is already in AudioFileManager buffers
+            // for n in 0 .. source_trees.roots.len() {
+            //     audio_file_managers[n].read_n_samples(buffer_size, &mut input_buffer[n][0..] );
+            // }         
 
+            
             //  Process everything here ...
+            // for n in 0 .. source_trees.roots.len() {
+            
+                unimplemented!();
+            todo!("Abstract Delay Lines!");    
+            (0..n_active_sources).into_iter().zip(ism_output_buffers.iter_mut()).for_each(|(n, out_buffer)|{
+                for i in 0..buffer_size {
+                    out_buffer.write(air_attenuation_filter.process(input_buffer[n].read()));
+                    input_buffer[n].write(audio_file_managers[n]);
+                }
+            });
+                
+                // ism_output_buffer[n];
+            
             //    ...
             //    ... 
             //    ...
