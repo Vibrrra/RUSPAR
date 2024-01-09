@@ -307,7 +307,7 @@ impl FilterStorage {
         reader 
     }
 
-    pub fn get_binaural_filter(&self, filter_type: BinauralFilterType, id: usize) -> &BinauralFilter{
+    pub fn get_binaural_filter(&self, id: usize) -> &BinauralFilter{
                self.storage.get(&id).unwrap()
          
     }
@@ -315,6 +315,7 @@ impl FilterStorage {
     pub fn get_n_stereo_segments(&self, filter_type: BinauralFilterType) -> usize {    
                 self.storage.values().next().unwrap().get_n_segments()
     }
+
 }
 
 

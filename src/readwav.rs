@@ -84,7 +84,7 @@ pub struct AudioFileManager {
     channels: usize, // reader.spec().channels as usize;
     num_samples: usize, 
     max_val: f32,
-    pub buffer: CircularDelayBuffer<f32>,  // (2.0f32).powf(bit_depth as f32 - 1.0) ; 
+    pub buffer: CircularDelayBuffer,  // (2.0f32).powf(bit_depth as f32 - 1.0) ; 
 }
 
 impl AudioFileManager {

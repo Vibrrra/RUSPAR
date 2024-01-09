@@ -266,7 +266,7 @@ fn calc_ism_position(source_position: &Vector3<f32>, r: &Room, b: &Reflected) ->
 
 // helper functions
 #[allow(unused)]
-fn is_per_model(maxorder: usize, n_surfaces: usize) -> usize {
+pub fn is_per_model(maxorder: usize, n_surfaces: usize) -> usize {
     let mut n_ism: usize = 0;
     for i in 1..=maxorder {
         n_ism += is_per_order(i as f64, n_surfaces as f64) as usize;

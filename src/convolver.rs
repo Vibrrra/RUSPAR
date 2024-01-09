@@ -5,6 +5,7 @@ use crate::filter::{FilterStorage, FFTManager, BinauralFilterType, BinauralFilte
 use std::f32::consts::PI;
 
 #[allow(unused)]
+#[derive(Clone)]
 pub struct Spatializer {
     // filter segmentation values
     n_points: usize,

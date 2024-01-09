@@ -9,7 +9,7 @@ use std::thread;
 use crate::{
     convolver::Spatializer,
     filter::{BinauralFilter, FFTManager, FilterStorage},
-    buffers::CircularDelayBuffer, image_source_method::{SourceTrees, N_IS_INDEX_RANGES}, readwav::AudioFileManager, config::{MAX_SOURCES, audio_file_list, C}, delaylines::DelayLine,
+    buffers::CircularDelayBuffer, image_source_method::{SourceTrees, N_IS_INDEX_RANGES, is_per_model}, readwav::AudioFileManager, config::{MAX_SOURCES, audio_file_list, C}, delaylines::DelayLine,
 };
 
 //pub fn start_audio_thread(acoustic_scene: Arc<Mutex<ISMAcousticScene>>) {
@@ -74,21 +74,27 @@ where
 
     let filterpath: &str = "./assets/hrtf_binaray.dat";
     let anglepath: &str = "./assets/angles.dat";
-    // initialize Engine here
-    let mut fft_manager = FFTManager::new(512);
+    
+    let ism_order = 2;
+
+    // Init Spatializer
+    let mut fft_manager = FFTManager::new(buffer_size);
     let (hrtf_storage, hrtf_tree) =
         FilterStorage::new(filterpath, anglepath, &mut fft_manager, buffer_size);
 
-    let mut spatializer = Spatializer::new(buffer_size, fft_manager, &hrtf_storage);
-    let prev_hrtfs: Vec<&BinauralFilter> = Vec::new();
-    let active_hrtfs: Vec<&BinauralFilter> = Vec::new();
+    let mut spatializers: Vec<Spatializer> = vec![Spatializer::new(buffer_size, fft_manager, &hrtf_storage); MAX_SOURCES * is_per_model(ism_order, 6usize)];
+
+    // TODO:: This should be handled by an init method providing start-up data from Unity for 
+    let init_az_el: [f32; 2] = [0.0, 0.0];
+    let mut prev_hrtf_ids:Vec<usize>  = vec![hrtf_tree.find_closest_stereo_filter_angle(init_az_el[0], init_az_el[1]); MAX_SOURCES];
+    let mut curr_hrtf_ids:Vec<usize>  = vec![hrtf_tree.find_closest_stereo_filter_angle(init_az_el[0], init_az_el[1]); MAX_SOURCES];
 
     // let mut audio_scene = ISMAcousticScene::default();
-    let ism_order = 2;
+    
     // let speed_of_sound = 343.0;
     let ism_buffer_len =  (sample_rate * 15.0 / C ).ceil() as usize;
 
-    // let mut ism_buffers = vec![CircularDelayBuffer::new(ism_buffer_len); n_sources];
+    // Init ISM 
     let mut buffer_trees: BufferTree = create_buffer_trees(MAX_SOURCES, ism_buffer_len, ism_order);
     let mut input_buffer: Vec<Vec<f32>> = vec![vec![0.0f32; buffer_size];MAX_SOURCES];
     let mut ism_output_buffers: Vec<Vec<f32>> = vec![vec![0.0f32; buffer_size];MAX_SOURCES];
@@ -118,11 +124,16 @@ where
                                 .enumerate()
                                 .zip(buffer_trees.buffer_arenas.iter_mut().zip(buffer_trees.node_lists.iter()))
                                 .for_each(|((n,(src_arena, src_node_list)), (buffer_arena, buffer_node_list))| {
-                src_node_list.iter().zip(buffer_node_list.iter()).for_each(|(src_node_id, buffer_node_id)| {
+                src_node_list.iter().zip(buffer_node_list.iter()).zip(prev_hrtf_ids.iter_mut().zip(curr_hrtf_ids.iter_mut())).for_each(|((src_node_id, buffer_node_id), (prev_hrtf_id, curr_hrtf_id))| {
                     
                     // updating buffer read-pointers. We could maybe already write audio into these if we are already iterating. maybe even more processing?
-                    let delay_time = src_arena.get(*src_node_id).unwrap().get().dist / C;
+                    let src = src_arena.get(*src_node_id).unwrap().get();
+                    let delay_time = src.dist / C;
                     buffer_arena.get_mut(*buffer_node_id).unwrap().get_mut().set_delay_time_ms(delay_time, sample_rate);
+                    *prev_hrtf_id = *curr_hrtf_id;
+                    *curr_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(src.listener_source_orientation.azimuth, src.listener_source_orientation.elevation)
+
+                    
                 })
             });   
 
@@ -141,10 +152,12 @@ where
                                 .zip(ism_output_buffers.iter_mut())
                                 .for_each(|(n, out_buffer)|{
                 out_buffer.iter_mut().for_each(|x|{
-                    *x = ism_delay_lines[n].process(audio_file_managers[n].buffer.read())
+                    *x = ism_delay_lines[n].process(audio_file_managers[n].buffer.read());
                 });
             });
                 
+
+
                 // ism_output_buffer[n];
             
             //    ...
