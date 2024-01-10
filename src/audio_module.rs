@@ -171,7 +171,7 @@ where
                     let fdn_delayline_idx = map_ism_to_fdn_channel(n, fdn_n_dls);
                     // InnerLoop 2: 
                     // Iterate over samples (buffersize)
-                    ism_output_buffer.iter_mut().zip(fnd_input_buf.buffer[n].iter_mut()).for_each(|(mut ism_line_output, fdn_input)| {
+                    ism_output_buffer.iter_mut().zip(fnd_input_buf.buffer[fdn_delayline_idx].iter_mut()).for_each(|(mut ism_line_output, fdn_input)| {
                         //---------------------------------------
                         // read audio in per source
                         let sample_in = audio_file_managers[n].buffer.read();
@@ -198,18 +198,7 @@ where
             
             //     unimplemented!();
             // todo!("Abstract Delay Lines!");    
-            (0..n_active_sources).into_iter()
-                                .zip(ism_output_buffers.iter_mut())
-                                .for_each(|(n, out_buffer)|{
-                out_buffer.iter_mut().for_each(|x|{
-                    *x = ism_delay_lines[n].process(audio_file_managers[n].buffer.read());
-                    // map_ism_to_fdn_channel(x, channel_index, fdn_buff)
-
-                });
-            });
-                
-
-
+          
                 // ism_output_buffer[n];
             
             //    ...
