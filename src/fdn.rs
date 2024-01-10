@@ -111,8 +111,27 @@ impl FDNLine {
     }
 }
 
+pub struct FDNInputBuffer {
+    pub buffer: Vec<Vec<f32>>,
+    wp: usize,
+} 
+
+impl FDNInputBuffer {
+    pub fn new(number_of_lines: usize, buffer_size: usize) -> Self{
+        Self {
+            buffer: vec![vec![0.0; buffer_size]; number_of_lines],
+            wp: 0, }
+    }
+    pub fn flush(&mut self) {
+        self.buffer.iter_mut().for_each(|buf| {
+            buf.iter_mut().for_each(|x|{*x = 0.0f32;})
+        })
+    }
+}
+
+
 // helper functions
-pub fn calc_fdn_delayline_lengths(number_of_lines: usize, room_dims: Vector3<f32>, speed_of_sound: f32) -> Vec<f32> {
+pub fn calc_fdn_delayline_lengths(number_of_lines: usize, room_dims: &Vector3<f32>, speed_of_sound: f32) -> Vec<f32> {
     let mut tau = vec![0.0f32; number_of_lines];
      //Vec::<f32>::with_capacity(number_of_lines);
     let mut rng = rand::thread_rng();    
@@ -133,6 +152,10 @@ pub fn calc_fdn_delayline_lengths(number_of_lines: usize, room_dims: Vector3<f32
     tau
 }
 
+pub fn map_ism_to_fdn_channel(channel_index: usize, n_fdn_lines: usize) -> usize {
+    channel_index % n_fdn_lines
+}
+
 #[cfg(test)]
 #[test]
 
@@ -142,7 +165,7 @@ fn test_fdn_dl_creation() {
     let speed_of_sound=343.0f32;
     let nol = 4;
 
-    let mut fdnls = calc_fdn_delayline_lengths(nol, room, speed_of_sound);
+    let mut fdnls = calc_fdn_delayline_lengths(nol, &room, speed_of_sound);
     fdnls.iter_mut().for_each(|y|{*y*=48000.0; *y=y.round();});
     println!("{:?}",fdnls)
 

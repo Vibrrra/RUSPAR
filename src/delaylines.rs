@@ -4,7 +4,7 @@ use crate::buffers::CircularDelayBuffer;
 
 #[derive(Debug, Clone)]
 pub struct DelayLine {
-    delayline: CircularDelayBuffer,
+    pub delayline: CircularDelayBuffer,
     // air_absorption_filter
     air_absorption_filter: DirectForm2Transposed<f32>,
     air_absorption_coeff: f32,
@@ -39,6 +39,7 @@ impl DelayLine {
             b1: 0.0, 
             b2: 0.0 };
     }
+
 }
 
 #[inline(always)]
