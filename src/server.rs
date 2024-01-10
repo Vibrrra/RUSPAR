@@ -2,8 +2,9 @@ use std::sync::mpsc;
 
 use crate::{
     audioSceneHandlerData::Scene_data, audio_module::start_audio_thread,
-    osc::OSCHandler, image_source_method::SourceTrees, scene_parser::update_scene,
+    osc::OSCHandler, image_source_method::{SourceTrees, Room}, scene_parser::update_scene,
 };
+use nalgebra::Vector3;
 use protobuf::Message;
 
 // test struct. Don't what to send to the audio lopp yet
@@ -31,9 +32,10 @@ pub fn start_server(port: u32) -> ! {
     //let mut scene_data = Scene_data::default();
     // maybe start audio module here
     //
+    let room =  Room::new(4.0, 3.0, 5.0);
     let (tx, rx) = mpsc::channel();
     // let mut ism_meta_data_vector = Arc::new(Mutex::new(vec![IsmMetaData::default(); 36]));
-    start_audio_thread(rx, source_trees.clone()); //acoustic_scene.clone());
+    start_audio_thread(rx, source_trees.clone(), room); //acoustic_scene.clone());
 
     loop {
         // receive from adress

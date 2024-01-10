@@ -43,7 +43,7 @@ pub struct Room {
 
 #[allow(dead_code)]
 impl Room {
-    fn new(width: f32, height: f32, length: f32) -> Self {
+    pub fn new(width: f32, height: f32, length: f32) -> Self {
         Self {
             dimension: Vector3::new(width, height, length),
         }

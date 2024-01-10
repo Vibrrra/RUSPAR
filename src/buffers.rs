@@ -44,7 +44,7 @@ impl CircularDelayBuffer {
         }
         self.rp = delay_time_in_samples;
     }
-    pub fn read_chunk(&self, n: usize, out: &mut [f32]) {
+    pub fn read_chunk(&mut self, n: usize, out: &mut [f32]) {
         out.iter_mut().for_each(|y| {*y = self.read();})
     } 
 }
