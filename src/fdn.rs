@@ -5,6 +5,8 @@ use crate::{
 use biquad::{Biquad, Coefficients, DirectForm2Transposed};
 // use crate::mixingmatrix;
 use cfg_if;
+use nalgebra::Vector3;
+use rand::Rng;
 
 #[allow(unused)]
 pub struct FeedbackDelayNetwork {
@@ -107,4 +109,41 @@ impl FDNLine {
         let delay_line_output = self.delay_line_buffer.process(sample);
         self.filter.run(delay_line_output)
     }
+}
+
+// helper functions
+pub fn calc_fdn_delayline_lengths(number_of_lines: usize, room_dims: Vector3<f32>, speed_of_sound: f32) -> Vec<f32> {
+    let mut tau = vec![0.0f32; number_of_lines];
+     //Vec::<f32>::with_capacity(number_of_lines);
+    let mut rng = rand::thread_rng();    
+    let room_dim_mean = room_dims.mean()/3.0;
+    let mut rdi = room_dims.iter();
+    let mut eps = 0.0f32;
+    tau.iter_mut().for_each(|t| {
+        match rdi.next() {
+            None => {
+                rdi = room_dims.iter();
+                eps = rng.gen();
+            *   t = (1.0 / speed_of_sound) * (rdi.next().unwrap() * eps * room_dim_mean);}
+            Some(d) => {
+                eps = rng.gen();
+                *t = (1.0 / speed_of_sound) * (d * eps * room_dim_mean);
+         }   
+    }});
+    tau
+}
+
+#[cfg(test)]
+#[test]
+
+fn test_fdn_dl_creation() {
+    
+    let room = Vector3::<f32>::new(4.0, 5.0, 6.0);
+    let speed_of_sound=343.0f32;
+    let nol = 4;
+
+    let mut fdnls = calc_fdn_delayline_lengths(nol, room, speed_of_sound);
+    fdnls.iter_mut().for_each(|y|{*y*=48000.0; *y=y.round();});
+    println!("{:?}",fdnls)
+
 }

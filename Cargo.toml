@@ -33,3 +33,4 @@ byteorder = "1.5.0"
 
 # experimental stuff
 indextree = "4.6.0"
+rand = "0.8.5"

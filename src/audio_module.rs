@@ -3,17 +3,18 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait}, FromSample, Sample, SizedSample,
 };
 use indextree::{Arena, NodeId};
+use nalgebra::Vector3;
 use std::sync::mpsc::Receiver;
 use std::thread;
 
 use crate::{
     convolver::Spatializer,
     filter::{BinauralFilter, FFTManager, FilterStorage},
-    buffers::CircularDelayBuffer, image_source_method::{SourceTrees, N_IS_INDEX_RANGES, is_per_model}, readwav::AudioFileManager, config::{MAX_SOURCES, audio_file_list, C}, delaylines::DelayLine,
+    buffers::CircularDelayBuffer, image_source_method::{SourceTrees, N_IS_INDEX_RANGES, is_per_model}, readwav::AudioFileManager, config::{MAX_SOURCES, audio_file_list, C}, delaylines::DelayLine, fdn::{FeedbackDelayNetwork, calc_fdn_delayline_lengths},
 };
 
 //pub fn start_audio_thread(acoustic_scene: Arc<Mutex<ISMAcousticScene>>) {
-pub fn start_audio_thread(rx: Receiver<SourceTrees>, _source_trees: SourceTrees) {
+pub fn start_audio_thread(rx: Receiver<SourceTrees>, mut source_trees: SourceTrees) {
     //pub fn start_audio_thread(scene_data: Arc<Mutex<ISMAcousticScene>>) {
     thread::spawn(move || {
         let host = cpal::default_host();
@@ -22,34 +23,34 @@ pub fn start_audio_thread(rx: Receiver<SourceTrees>, _source_trees: SourceTrees)
 
         let audio_thread_result = match output_config.sample_format() {
             cpal::SampleFormat::I8 => {
-                run::<i8>(&output_device, &output_config.into(), rx)
+                run::<i8>(&output_device, &output_config.into(), rx, source_trees)
             }
             cpal::SampleFormat::I16 => {
-                run::<i16>(&output_device, &output_config.into(), rx)
+                run::<i16>(&output_device, &output_config.into(), rx, source_trees)
             }
             cpal::SampleFormat::I32 => {
-                run::<i32>(&output_device, &output_config.into(), rx)
+                run::<i32>(&output_device, &output_config.into(), rx, source_trees)
             }
             cpal::SampleFormat::I64 => {
-                run::<i64>(&output_device, &output_config.into(), rx)
+                run::<i64>(&output_device, &output_config.into(), rx, source_trees)
             }
             cpal::SampleFormat::U8 => {
-                run::<u8>(&output_device, &output_config.into(), rx)
+                run::<u8>(&output_device, &output_config.into(), rx, source_trees)
             }
             cpal::SampleFormat::U16 => {
-                run::<u16>(&output_device, &output_config.into(), rx)
+                run::<u16>(&output_device, &output_config.into(), rx, source_trees)
             }
             cpal::SampleFormat::U32 => {
-                run::<u32>(&output_device, &output_config.into(), rx)
+                run::<u32>(&output_device, &output_config.into(), rx, source_trees)
             }
             cpal::SampleFormat::U64 => {
-                run::<u64>(&output_device, &output_config.into(), rx)
+                run::<u64>(&output_device, &output_config.into(), rx, source_trees)
             }
             cpal::SampleFormat::F32 => {
-                run::<f32>(&output_device, &output_config.into(), rx)
+                run::<f32>(&output_device, &output_config.into(), rx, source_trees)
             }
             cpal::SampleFormat::F64 => {
-                run::<f64>(&output_device, &output_config.into(), rx)
+                run::<f64>(&output_device, &output_config.into(), rx, source_trees)
             }
             sample_format => panic!("Unsupported sample format '{sample_format}'"),
         };
@@ -62,6 +63,7 @@ fn run<T>(
     devcice: &cpal::Device,
     config: &cpal::StreamConfig,
     rx: Receiver<SourceTrees>,
+    mut source_trees: SourceTrees,
     
 ) -> Result<(), anyhow::Error>
 where
@@ -90,32 +92,42 @@ where
     let mut curr_hrtf_ids:Vec<usize>  = vec![hrtf_tree.find_closest_stereo_filter_angle(init_az_el[0], init_az_el[1]); MAX_SOURCES];
 
     // let mut audio_scene = ISMAcousticScene::default();
-    
-    // let speed_of_sound = 343.0;
+
     let ism_buffer_len =  (sample_rate * 15.0 / C ).ceil() as usize;
 
     // Init ISM 
     let mut buffer_trees: BufferTree = create_buffer_trees(MAX_SOURCES, ism_buffer_len, ism_order);
-    let mut input_buffer: Vec<Vec<f32>> = vec![vec![0.0f32; buffer_size];MAX_SOURCES];
-    let mut ism_output_buffers: Vec<Vec<f32>> = vec![vec![0.0f32; buffer_size];MAX_SOURCES];
+    let mut input_buffer: Vec<Vec<f32>> = vec![vec![0.0f32; buffer_size]; MAX_SOURCES];
+    let mut ism_output_buffers: Vec<Vec<f32>> = vec![vec![0.0f32; buffer_size]; MAX_SOURCES];
     let mut ism_delay_lines: Vec<DelayLine> = vec![DelayLine::new(ism_buffer_len); MAX_SOURCES];
-    let mut audio_file_managers: Vec<AudioFileManager> = Vec::new();
     let mut n_active_sources = 1usize;
+
+    // Init FDN
+    let default_room_dims = Vector3::new(4.0, 3.0, 5.0);
+    let fdn_n_dls: usize = 24;
+    let fdn_dl_lengths = calc_fdn_delayline_lengths(fdn_n_dls, default_room_dims, C);
+    // let mut fdn = FeedbackDelayNetwork::new(fdn_dl_lengths);
+    // Init AudioFileManager
+    let mut audio_file_managers: Vec<AudioFileManager> = Vec::new();
     for i in 0 .. MAX_SOURCES {
         audio_file_managers.push( AudioFileManager::new(audio_file_list[i].to_string(), buffer_size));
     }
+
+    // Init receive 
+    source_trees = rx.recv().unwrap();
+
     // Create Stream
     let stream = devcice.build_output_stream(
         config,
         move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
             
             // Receive Updates
-            let source_trees = match rx.try_recv() {
+            match rx.try_recv() {
                 Ok(data) => {
                     n_active_sources = data.roots.len();
-                    data
+                    source_trees = data
                 },
-                Err(_) => todo!(),                
+                Err(_) => {},                
             };
 
             // Update ISM and probably (FDN)
@@ -233,5 +245,4 @@ fn test_buffer_tree() {
     for i in bt.node_lists[0].iter().enumerate() {
         println!("Nr: {}, {:?}", i.0, i.1)
     }
- 
 }
