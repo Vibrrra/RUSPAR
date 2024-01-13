@@ -16,6 +16,7 @@ use crate::{
     config::{MAX_SOURCES, audio_file_list, C}, 
     delaylines::DelayLine, 
     fdn::{FeedbackDelayNetwork, calc_fdn_delayline_lengths, map_ism_to_fdn_channel, FDNInputBuffer},
+    assets::{DL_S, A_FDN, B_FDN, A_FDN_TC, B_FDN_TC}
 };
 
 //pub fn start_audio_thread(acoustic_scene: Arc<Mutex<ISMAcousticScene>>) {
@@ -111,10 +112,13 @@ where
     let mut n_active_sources = 1usize;
 
     // Init FDN
-    // let default_room_dims = Vector3::new(4.0, 3.0, 5.0);
+    // We init some constants for testing
     let fdn_n_dls: usize = 24;
+    let delay_line_lengths: Vec<usize>  = DL_S.iter().map(|x| {(x*sample_rate).ceil() as usize}).collect();
     let mut fnd_input_buf: FDNInputBuffer = FDNInputBuffer::new(fdn_n_dls, buffer_size);
-    let fdn_dl_lengths = calc_fdn_delayline_lengths(fdn_n_dls, &room.dimension, C);
+    // let fdn_dl_lengths = calc_fdn_delayline_lengths(fdn_n_dls, &room.dimension, C);
+    let mut fdn = FeedbackDelayNetwork::from_assets(fdn_n_dls, delay_line_lengths, B_FDN, A_FDN, B_FDN_TC, A_FDN_TC);
+
     // let mut fdn = FeedbackDelayNetwork::new(fdn_dl_lengths);
     // Init AudioFileManager
     let mut audio_file_managers: Vec<AudioFileManager> = Vec::new();
@@ -186,6 +190,7 @@ where
                     }) 
                 })
             });   
+
 
             // read audio in - Probably useless as audio is already in AudioFileManager buffers
             // for n in 0 .. source_trees.roots.len() {

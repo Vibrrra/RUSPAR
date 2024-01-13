@@ -8,12 +8,14 @@ pub mod filter;
 pub mod mixingmatrix;
 pub mod osc;
 pub mod delaylines;
+pub mod iir_filter;
 pub mod readwav;
 //pub mod scene;      
 pub mod scene_parser;
 pub mod server;
 pub mod image_source_method;
 pub mod config;
+pub mod assets;
 use interoptopus::ffi_function;
 
 // use protobuf::ext;

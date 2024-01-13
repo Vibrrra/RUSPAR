@@ -5,7 +5,7 @@ const LIBRARY_NAME: &str = "RustTest";
 
 #[test]
 fn bindings_csharp() -> Result<(), Error> {
-    let inventory = RustTest::bind::build_binding_inventory();
+    let inventory = RUSPAR::bind::build_binding_inventory();
     let config = Config {
         class: LIBRARY_NAME.to_string(),
         dll_name: LIBRARY_NAME.to_string(),
