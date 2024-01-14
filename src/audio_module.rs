@@ -13,7 +13,7 @@ use crate::{
     buffers::CircularDelayBuffer, 
     image_source_method::{SourceTrees, N_IS_INDEX_RANGES, is_per_model, Room}, 
     readwav::AudioFileManager, 
-    config::{MAX_SOURCES, audio_file_list, C}, 
+    config::{MAX_SOURCES, audio_file_list, C, IMAGE_SOURCE_METHOD_ORDER}, 
     delaylines::DelayLine, 
     fdn::{FeedbackDelayNetwork, calc_fdn_delayline_lengths, map_ism_to_fdn_channel, FDNInputBuffer},
     assets::{DL_S, A_FDN, B_FDN, A_FDN_TC, B_FDN_TC}
@@ -97,8 +97,8 @@ where
 
     // TODO:: This should be handled by an init method providing start-up data from Unity for 
     let init_az_el: [f32; 2] = [0.0, 0.0];
-    let mut prev_hrtf_ids:Vec<usize>  = vec![hrtf_tree.find_closest_stereo_filter_angle(init_az_el[0], init_az_el[1]); MAX_SOURCES];
-    let mut curr_hrtf_ids:Vec<usize>  = vec![hrtf_tree.find_closest_stereo_filter_angle(init_az_el[0], init_az_el[1]); MAX_SOURCES];
+    let mut prev_hrtf_ids:Vec<usize>  = vec![hrtf_tree.find_closest_stereo_filter_angle(init_az_el[0], init_az_el[1]); MAX_SOURCES* is_per_model(IMAGE_SOURCE_METHOD_ORDER, 6usize)];
+    let mut curr_hrtf_ids:Vec<usize>  = vec![hrtf_tree.find_closest_stereo_filter_angle(init_az_el[0], init_az_el[1]); MAX_SOURCES* is_per_model(IMAGE_SOURCE_METHOD_ORDER, 6usize)];
 
     // let mut audio_scene = ISMAcousticScene::default();
 
@@ -115,9 +115,10 @@ where
     // We init some constants for testing
     let fdn_n_dls: usize = 24;
     let delay_line_lengths: Vec<usize>  = DL_S.iter().map(|x| {(x*sample_rate).ceil() as usize}).collect();
-    let mut fnd_input_buf: FDNInputBuffer = FDNInputBuffer::new(fdn_n_dls, buffer_size);
+    let mut fdn_input_buf: FDNInputBuffer = FDNInputBuffer::new(fdn_n_dls, buffer_size);
+    let mut fnd_output_buf: FDNInputBuffer = FDNInputBuffer::new(fdn_n_dls, buffer_size);
     // let fdn_dl_lengths = calc_fdn_delayline_lengths(fdn_n_dls, &room.dimension, C);
-    let mut fdn = FeedbackDelayNetwork::from_assets(fdn_n_dls, delay_line_lengths, B_FDN, A_FDN, B_FDN_TC, A_FDN_TC);
+    let mut fdn = FeedbackDelayNetwork::from_assets(fdn_n_dls, buffer_size,  delay_line_lengths, B_FDN, A_FDN, B_FDN_TC, A_FDN_TC);
 
     // let mut fdn = FeedbackDelayNetwork::new(fdn_dl_lengths);
     // Init AudioFileManager
@@ -133,7 +134,7 @@ where
         config,
         move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
             // flush some buffers
-            fnd_input_buf.flush();
+            fdn_input_buf.flush();
 
             // Receive Updates
             match rx.try_recv() {
@@ -175,14 +176,15 @@ where
                     let fdn_delayline_idx = map_ism_to_fdn_channel(n, fdn_n_dls);
                     // InnerLoop 2: 
                     // Iterate over samples (buffersize)
-                    ism_output_buffer.iter_mut().zip(fnd_input_buf.buffer[fdn_delayline_idx].iter_mut()).for_each(|(mut ism_line_output, fdn_input)| {
+                    ism_output_buffer.iter_mut().zip(fdn_input_buf.buffer[fdn_delayline_idx].iter_mut()).for_each(|(mut ism_line_output, fdn_input)| {
+                    // ism_output_buffer.iter_mut().zip(fdn.matrix_inputs.iter_mut()).for_each(|(mut ism_line_output, fdn_input)| {
                         //---------------------------------------
                         // read audio in per source
                         let sample_in = audio_file_managers[n].buffer.read();
                         
                         // process delaylines and store output buffer (-> spatializer)
                         *ism_line_output = delayline.delayline.process(sample_in);           
-                        *fdn_input += *ism_line_output;
+                        // *fdn_input += *ism_line_output;
                         // map to FDN input channels
                         // let fdn_delayline_idx = map_ism_to_fdn_channel(n, fdn_n_dls);
 
@@ -191,24 +193,19 @@ where
                 })
             });   
 
+            // fdn.matrix_inputs.iter_mut().for_each(||)
+            // fdn.process(fnd_input_buf, fdn_ou)
+            for i in 0..buffer_size {
+                fdn.delaylines.iter_mut().zip(fdn.matrix_outputs.iter()).zip(fdn.matrix_inputs.iter_mut()).zip(fnd_output_buf.buffer.iter_mut()).zip(fdn_input_buf.buffer.iter())
+                .for_each(|((((fdn_in, mat_out),mat_in),fdn_out), fdn_input_buf)| {
+                    *mat_in = fdn_in.tick(fdn_input_buf[i]+mat_out);
+                    fdn_out[i] = *mat_in;
+                });
+            }
 
-            // read audio in - Probably useless as audio is already in AudioFileManager buffers
-            // for n in 0 .. source_trees.roots.len() {
-            //     audio_file_managers[n].read_n_samples(buffer_size, &mut input_buffer[n][0..] );
-            // }         
 
-            
-            //  Process everything here ...
-            // for n in 0 .. source_trees.roots.len() {
-            
-            //     unimplemented!();
-            // todo!("Abstract Delay Lines!");    
-          
-                // ism_output_buffer[n];
-            
-            //    ...
-            //    ... 
-            //    ...
+            // HRTF stuff
+
             todo!()
         },
         error_callback,

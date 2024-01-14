@@ -1,6 +1,6 @@
 
 // Config structure
-pub static image_source_method_order: usize = 2;
+pub static IMAGE_SOURCE_METHOD_ORDER: usize = 2;
 pub const C: f32 = 343.0;
 pub const MAX_SOURCES: usize = 1;
 

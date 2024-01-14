@@ -11,16 +11,17 @@ use rand::Rng;
 
 #[allow(unused)]
 pub struct FeedbackDelayNetwork {
-    delaylines: Vec<FDNLine>,
-    delayline_inputs: Vec<f32>,
-    delayline_outpus: Vec<f32>,
-    matrix_inputs: Vec<f32>,
-    matrix_outputs: [f32; 12],
+    pub delaylines: Vec<FDNLine>,
+    pub delayline_inputs: Vec<f32>,
+    pub delayline_outpus: Vec<f32>,
+    pub matrix_inputs: [f32; 24],
+    pub matrix_outputs: [f32; 24],
 }
 
 impl FeedbackDelayNetwork {
     pub fn new(
         n: usize,
+        blocksize: usize, 
         delay_line_lengths: Vec<usize>,
         fdn_b_vecs: Vec<Vec<f32>>,
         fdn_a_vecs: Vec<Vec<f32>>,
@@ -37,14 +38,15 @@ impl FeedbackDelayNetwork {
             delaylines,
             delayline_inputs: vec![0.0; n],
             delayline_outpus: vec![0.0; n],
-            matrix_inputs: vec![0.0; n],
-            matrix_outputs: [0.0; 12],
+            matrix_inputs:  [0.0; 24],
+            matrix_outputs: [0.0; 24],
             //mixing_matrix: create_hadamard(N),
             // mixing_matrix: todo()
         }
     }
     pub fn from_assets(
         n: usize,
+        blocksize: usize,
         delay_line_lengths: Vec<usize>,
         fdn_b_vecs: [[f32;9];24],
         fdn_a_vecs: [[f32;9];24],
@@ -61,8 +63,8 @@ impl FeedbackDelayNetwork {
             delaylines,
             delayline_inputs: vec![0.0; n],
             delayline_outpus: vec![0.0; n],
-            matrix_inputs: vec![0.0; n],
-            matrix_outputs: [0.0; 12],
+            matrix_inputs:  [0.0; 24],
+            matrix_outputs: [0.0; 24],
             //mixing_matrix: create_hadamard(N),
             // mixing_matrix: todo()
         }
@@ -74,7 +76,7 @@ impl FeedbackDelayNetwork {
             self.delayline_inputs[i] = samples
                 .into_iter()
                 .skip(i)
-                .step_by(12)
+                .step_by(24)
                 .fold(0f32, |acc, &x| acc + x);
             self.delayline_inputs[i] += self.matrix_outputs[i];
             // self.delayline_outpus[i] = self.delaylines[i].tick(self.delayline_inputs[i]);
@@ -101,6 +103,8 @@ impl FeedbackDelayNetwork {
         //     }
         // }
     }
+
+
 }
 
 
@@ -109,7 +113,7 @@ impl FeedbackDelayNetwork {
 // }
 
 #[allow(unused)]
-struct FDNLine {
+pub struct FDNLine {
     delay_line_buffer: buffers::CircularDelayBuffer,
     filter: IIRFilter,//DirectForm2Transposed<f32>,
     length: usize,
@@ -151,7 +155,7 @@ pub struct FDNInputBuffer {
 impl FDNInputBuffer {
     pub fn new(number_of_lines: usize, buffer_size: usize) -> Self{
         Self {
-            buffer: vec![vec![0.0; buffer_size]; number_of_lines],
+            buffer: vec![vec![0.0; number_of_lines]; number_of_lines],
             wp: 0, }
     }
     pub fn flush(&mut self) {
