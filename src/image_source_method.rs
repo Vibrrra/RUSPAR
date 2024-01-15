@@ -210,80 +210,80 @@ pub trait SourceType<T> {
 }
 
 
-pub struct ISMSource {
-    pub source: Source,
-    pub spatializer: Spatializer,
-    pub curr_hrtf_id: usize,
-    pub prev_hrtf_id: usize,
-}
+// pub struct ISMSource {
+//     pub source: Source,
+//     pub spatializer: Spatializer,
+//     pub curr_hrtf_id: usize,
+//     pub prev_hrtf_id: usize,
+// }
 
-impl ISMSource {
-    pub fn new(source: Source, spatializer: Spatializer, curr_hrtf_id: usize, prev_hrtf_id: usize) -> Self {
-        Self {
-            source, spatializer, curr_hrtf_id, prev_hrtf_id
-        }
-    }
-}
+// impl ISMSource {
+//     pub fn new(source: Source, spatializer: Spatializer, curr_hrtf_id: usize, prev_hrtf_id: usize) -> Self {
+//         Self {
+//             source, spatializer, curr_hrtf_id, prev_hrtf_id
+//         }
+//     }
+// }
 
 
-impl SourceType<ISMSource> for ISMSource {
-    fn get_dist(&self) -> f32 {
-        self.source.dist
-    }
-    fn get_orientation(&self) -> Quaternion<f32> {
-        self.source.orientation
-    }
-    fn get_reflector(&self) -> &Reflected {
-        &self.source.reflector
-    }
-    fn get_pos(&self) -> Vector3<f32> {
-        self.source.position
-    }
-    fn set_pos(&mut self, position: Vector3<f32>) {
-        self.source.position = position;
-    }
-    fn get_lst_src_transform(&self) -> SphericalCoordinates {
-        self.source.listener_source_orientation
-    }
-    fn get_src_lst_transform(&self) -> SphericalCoordinates {
-        self.source.source_listener_orientation
-    }
-    fn create_ism(s: &ISMSource, r: &Room, b: &Reflected, may_have_spatializer: Option<Spatializer>) -> ISMSource {   
+// impl SourceType<ISMSource> for ISMSource {
+//     fn get_dist(&self) -> f32 {
+//         self.source.dist
+//     }
+//     fn get_orientation(&self) -> Quaternion<f32> {
+//         self.source.orientation
+//     }
+//     fn get_reflector(&self) -> &Reflected {
+//         &self.source.reflector
+//     }
+//     fn get_pos(&self) -> Vector3<f32> {
+//         self.source.position
+//     }
+//     fn set_pos(&mut self, position: Vector3<f32>) {
+//         self.source.position = position;
+//     }
+//     fn get_lst_src_transform(&self) -> SphericalCoordinates {
+//         self.source.listener_source_orientation
+//     }
+//     fn get_src_lst_transform(&self) -> SphericalCoordinates {
+//         self.source.source_listener_orientation
+//     }
+//     fn create_ism(s: &ISMSource, r: &Room, b: &Reflected, may_have_spatializer: Option<Spatializer>) -> ISMSource {   
     
-        let position = calc_ism_position(&s.source.position, r, b);
+//         let position = calc_ism_position(&s.source.position, r, b);
         
-        let src = Source::new(
-            position, 
-            Quaternion::zero(), 
-            r, 
-            343.0, 
-            48000.0, 
-            Some(b.clone()), None
-        );
-        ISMSource::new(src, s.spatializer.clone(), s.curr_hrtf_id, s.prev_hrtf_id)
-    }
-    fn create_default(may_have_spatializer: Option<Spatializer>) -> Self {
-        ISMSource::new(Source::default(), may_have_spatializer.unwrap(), 0, 0)
-    }
-    fn get_spatializer(&self) -> Option<Spatializer> {
-        self.source.spatializer.clone()
-    }
-    fn set_spatializer(&mut self, spatializer: Spatializer) {
-        self.source.spatializer = Some(spatializer); 
-    }
-    fn get_curr_hrtf_id(&self) -> usize {
-        self.source.curr_hrtf_id
-    }
-    fn get_prev_hrtf_id(&self) -> usize {
-        self.source.prev_hrtf_id
-    }
-    fn set_curr_hrtf_id(&mut self, curr_hrtf_id: usize) {
-        self.source.curr_hrtf_id = curr_hrtf_id;
-    }
-    fn set_prev_hrtf_id(&mut self, prev_hrtf_id: usize) {
-        self.source.prev_hrtf_id = prev_hrtf_id;
-    }
-}
+//         let src = Source::new(
+//             position, 
+//             Quaternion::zero(), 
+//             r, 
+//             343.0, 
+//             48000.0, 
+//             Some(b.clone()), None
+//         );
+//         ISMSource::new(src, s.spatializer.clone(), s.curr_hrtf_id, s.prev_hrtf_id)
+//     }
+//     fn create_default(may_have_spatializer: Option<Spatializer>) -> Self {
+//         ISMSource::new(Source::default(), may_have_spatializer.unwrap(), 0, 0)
+//     }
+//     fn get_spatializer(&self) -> Option<Spatializer> {
+//         self.source.spatializer.clone()
+//     }
+//     fn set_spatializer(&mut self, spatializer: Spatializer) {
+//         self.source.spatializer = Some(spatializer); 
+//     }
+//     fn get_curr_hrtf_id(&self) -> usize {
+//         self.source.curr_hrtf_id
+//     }
+//     fn get_prev_hrtf_id(&self) -> usize {
+//         self.source.prev_hrtf_id
+//     }
+//     fn set_curr_hrtf_id(&mut self, curr_hrtf_id: usize) {
+//         self.source.curr_hrtf_id = curr_hrtf_id;
+//     }
+//     fn set_prev_hrtf_id(&mut self, prev_hrtf_id: usize) {
+//         self.source.prev_hrtf_id = prev_hrtf_id;
+//     }
+// }
 
 
 #[allow(dead_code)]
