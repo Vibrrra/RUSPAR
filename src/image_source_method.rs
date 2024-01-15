@@ -211,19 +211,18 @@ pub trait SourceType<T> {
     fn get_prev_hrtf_id(&self, ) -> usize;
 }
 
-
-pub struct ISMLine {
-    pub source: Source,
-    pub spatializer: Spatializer,
-    pub curr_hrtf_id: usize,
-    pub prev_hrtf_id: usize,
+#[derive(Clone)]
+pub struct ISMLine<U> {
+    pub source: U,
     pub spatializer_input_buffer: Vec<f32>, 
 }
 
-impl ISMLine {
-    pub fn new(source: Source, spatializer: Spatializer, curr_hrtf_id: usize, prev_hrtf_id: usize, block_size: usize) -> Self {
+impl<U> ISMLine<U> 
+{
+    
+    pub fn new(source: U, block_size: usize) -> Self {
         Self {
-            source, spatializer, curr_hrtf_id, prev_hrtf_id, spatializer_input_buffer: vec![0.0; block_size],
+            source, spatializer_input_buffer: vec![0.0; block_size],
         }
     }
 
@@ -232,66 +231,68 @@ impl ISMLine {
         todo!()
     }
 }
+// for <Source>
+impl SourceType<ISMLine<Source>> for ISMLine<Source> {
+    fn get_dist(&self) -> f32 {
+        self.source.dist
+    }
+    fn get_orientation(&self) -> Quaternion<f32> {
+        self.source.orientation
+    }
+    fn get_reflector(&self) -> &Reflected {
+        &self.source.reflector
+    }
+    fn get_pos(&self) -> Vector3<f32> {
+        self.source.position
+    }
+    fn set_pos(&mut self, position: Vector3<f32>) {
+        self.source.position = position;
+    }
+    fn get_lst_src_transform(&self) -> SphericalCoordinates {
+        self.source.listener_source_orientation
+    }
+    fn get_src_lst_transform(&self) -> SphericalCoordinates {
+        self.source.source_listener_orientation
+    }
+    fn create_ism(s: &ISMLine<Source>, r: &Room, b: &Reflected, may_have_spatializer: Option<Spatializer>) -> ISMLine<Source> {   
+ 
+        let position = calc_ism_position(&s.source.position, r, b);
+     
+        let src = Source::new(
+            position, 
+            Quaternion::zero(), 
+            r, 
+            343.0, 
+            48000.0, 
+            Some(b.clone()), None
+        );
+        ISMLine::new(src, s.spatializer_input_buffer.len())// s.source.spatializer.clone(), s.source.curr_hrtf_id, s.prev_hrtf_id)
+    }
+    fn create_default(may_have_spatializer: Option<Spatializer>) -> Self {
 
+        ISMLine::new(Source::default(), 512)
+    }
+    fn get_spatializer(&self) -> Option<Spatializer> {
+        self.source.spatializer.clone()
+    }
+    fn set_spatializer(&mut self, spatializer: Spatializer) {
+        self.source.spatializer = Some(spatializer); 
+    }
+    fn get_curr_hrtf_id(&self) -> usize {
+        self.source.curr_hrtf_id
+    }
+    fn get_prev_hrtf_id(&self) -> usize {
+        self.source.prev_hrtf_id
+    }
+    fn set_curr_hrtf_id(&mut self, curr_hrtf_id: usize) {
+        self.source.curr_hrtf_id = curr_hrtf_id;
+    }
+    fn set_prev_hrtf_id(&mut self, prev_hrtf_id: usize) {
+        self.source.prev_hrtf_id = prev_hrtf_id;
+    }
+}
 
-// impl SourceType<ISMLine> for ISMLine {
-//     fn get_dist(&self) -> f32 {
-//         self.source.dist
-//     }
-//     fn get_orientation(&self) -> Quaternion<f32> {
-//         self.source.orientation
-//     }
-//     fn get_reflector(&self) -> &Reflected {
-//         &self.source.reflector
-//     }
-//     fn get_pos(&self) -> Vector3<f32> {
-//         self.source.position
-//     }
-//     fn set_pos(&mut self, position: Vector3<f32>) {
-//         self.source.position = position;
-//     }
-//     fn get_lst_src_transform(&self) -> SphericalCoordinates {
-//         self.source.listener_source_orientation
-//     }
-//     fn get_src_lst_transform(&self) -> SphericalCoordinates {
-//         self.source.source_listener_orientation
-//     }
-//     fn create_ism(s: &ISMLine, r: &Room, b: &Reflected, may_have_spatializer: Option<Spatializer>) -> ISMLine {   
-    
-//         let position = calc_ism_position(&s.source.position, r, b);
-        
-//         let src = Source::new(
-//             position, 
-//             Quaternion::zero(), 
-//             r, 
-//             343.0, 
-//             48000.0, 
-//             Some(b.clone()), None
-//         );
-//         ISMLine::new(src, s.spatializer.clone(), s.curr_hrtf_id, s.prev_hrtf_id)
-//     }
-//     fn create_default(may_have_spatializer: Option<Spatializer>) -> Self {
-//         ISMLine::new(Source::default(), may_have_spatializer.unwrap(), 0, 0)
-//     }
-//     fn get_spatializer(&self) -> Option<Spatializer> {
-//         self.source.spatializer.clone()
-//     }
-//     fn set_spatializer(&mut self, spatializer: Spatializer) {
-//         self.source.spatializer = Some(spatializer); 
-//     }
-//     fn get_curr_hrtf_id(&self) -> usize {
-//         self.source.curr_hrtf_id
-//     }
-//     fn get_prev_hrtf_id(&self) -> usize {
-//         self.source.prev_hrtf_id
-//     }
-//     fn set_curr_hrtf_id(&mut self, curr_hrtf_id: usize) {
-//         self.source.curr_hrtf_id = curr_hrtf_id;
-//     }
-//     fn set_prev_hrtf_id(&mut self, prev_hrtf_id: usize) {
-//         self.source.prev_hrtf_id = prev_hrtf_id;
-//     }
-// }
+// for <U>
 
 
 #[allow(dead_code)]
@@ -310,7 +311,7 @@ pub struct SourceTrees<T> {
     pub roots: Vec<NodeId>
 }           
 impl<T> SourceTrees<T> 
-where T: SourceType<T> + Default + Clone {
+where T: SourceType<T> + Clone {
     pub fn create(number_of_sources: usize, ism_order: usize, may_have_spatializer: Option<Spatializer>) -> Self {
         let mut sources = Vec::new();
         for _ in 0 .. number_of_sources {
@@ -318,10 +319,43 @@ where T: SourceType<T> + Default + Clone {
         }
         create_source_tree(sources, &Room::default(), ism_order, None)//, may_have_spatializer)
     }
+    
 }
 // 
+pub fn from_source_tree<U>(source_tree: SourceTrees<U>, block_size: usize) -> SourceTrees<ISMLine<U>> 
+where U: SourceType<Source> + Clone
+{
+    
+    let mut arenas: Vec<Arena<ISMLine<U>>> = Vec::new();
+    let mut node_lists = Vec::new();
+    let mut roots = Vec::new();
+
+    for (src_arena, src_node_list) in source_tree.arenas.iter().zip(source_tree.node_lists.iter()) {
+        
+        let mut arena = indextree::Arena::new();
+        let mut node_list = Vec::new();
+        
+        let mut src_node_list_iter = src_node_list.iter();
+        let src = src_arena.get(*src_node_list_iter.next().unwrap()).unwrap().get();
+        let ismline = ISMLine::new(src.clone(), block_size);
+        let new_node = arena.new_node(ismline);
+        roots.push(new_node);
+        node_list.push(new_node);
+
+        while let Some(src_node) = src_node_list_iter.next() {
+            let src = src_arena.get(*src_node).unwrap().get();
+            let ismline = ISMLine::new(src.clone(), block_size);
+            let new_node = arena.new_node(ismline);
+            node_list.push(new_node);
+        }
+        node_lists.push(node_list);
+        arenas.push(arena);
+    }
+    SourceTrees { arenas, node_lists, roots}
+}
+
 pub fn create_source_tree<T>(sources: Vec<T>, room: &Room, ism_order: usize, may_have_spatializer: Option<Spatializer>) -> SourceTrees<T> 
-where T: Default + Clone + SourceType<T>
+where T: Clone + SourceType<T>
 {//(Arena<Source>, Vec<NodeId>) {
     
     let mut node_lists = Vec::new();

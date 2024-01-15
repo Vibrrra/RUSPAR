@@ -11,12 +11,12 @@ use crate::{
     convolver::Spatializer,
     filter::{BinauralFilter, FFTManager, FilterStorage},
     buffers::CircularDelayBuffer, 
-    image_source_method::{SourceTrees, N_IS_INDEX_RANGES, is_per_model, Room, SourceType, Source}, 
+    image_source_method::{SourceTrees, N_IS_INDEX_RANGES, is_per_model, Room, SourceType, Source, from_source_tree}, 
     readwav::AudioFileManager, 
     config::{MAX_SOURCES, audio_file_list, C, IMAGE_SOURCE_METHOD_ORDER}, 
     delaylines::DelayLine, 
     fdn::{FeedbackDelayNetwork, calc_fdn_delayline_lengths, map_ism_to_fdn_channel, FDNInputBuffer},
-    assets::{DL_S, A_FDN, B_FDN, A_FDN_TC, B_FDN_TC}
+assets::{DL_S, A_FDN, B_FDN, A_FDN_TC, B_FDN_TC}
 };
 
 //pub fn start_audio_thread(acoustic_scene: Arc<Mutex<ISMAcousticScene>>) {
@@ -78,7 +78,7 @@ fn run<T, U>(
 ) -> Result<(), anyhow::Error>
 where
     T: SizedSample + FromSample<f32>,
-    U: SourceType<Source> + Clone + Send + 'static,
+U: SourceType<Source> + Clone + Send + 'static,
 {
     let sample_rate = config.sample_rate.0 as f32;
     let channels = config.channels as usize;
@@ -91,7 +91,8 @@ where
     let ism_order = 2;
     
     // Init receive 
-      source_trees = rx.recv().unwrap();
+    let mut source_trees = from_source_tree(source_trees, buffer_size);
+    let source_trees_update = rx.recv().unwrap();
 
     // Init Spatializer
     let mut fft_manager = FFTManager::new(buffer_size);
@@ -103,7 +104,7 @@ where
     // set spatializer for sources in source tree
     source_trees.arenas.iter_mut().for_each(|arena| {
         arena.iter_mut().for_each(|src| {
-            src.get_mut().set_spatializer(spatializer.clone());
+            src.get_mut().source.set_spatializer(spatializer.clone());
         })
     });
 
@@ -130,7 +131,7 @@ where
     let mut fdn_input_buf: FDNInputBuffer = FDNInputBuffer::new(fdn_n_dls, buffer_size);
     let mut fnd_output_buf: FDNInputBuffer = FDNInputBuffer::new(fdn_n_dls, buffer_size);
     // let fdn_dl_lengths = calc_fdn_delayline_lengths(fdn_n_dls, &room.dimension, C);
-    let mut fdn = FeedbackDelayNetwork::from_assets(fdn_n_dls, buffer_size,  delay_line_lengths, B_FDN, A_FDN, B_FDN_TC, A_FDN_TC);
+let mut fdn = FeedbackDelayNetwork::from_assets(fdn_n_dls, buffer_size,  delay_line_lengths, B_FDN, A_FDN, B_FDN_TC, A_FDN_TC);
 
     // let mut fdn = FeedbackDelayNetwork::new(fdn_dl_lengths);
     // Init AudioFileManager
@@ -152,7 +153,12 @@ where
             match rx.try_recv() {
                 Ok(data) => {
                     n_active_sources = data.roots.len();
-                    source_trees = data
+                    for (((update_arena, update_vec), to_be_updated_arena),to_be_updated_vec) in (data.arenas.iter().zip(data.node_lists.iter()).zip(source_trees.arenas.iter_mut()).zip(source_trees.node_lists.iter())) {
+                        for (update_node,to_be_updated_node) in update_vec.iter().zip(to_be_updated_vec.iter()) {
+                            to_be_updated_arena.get_mut(*to_be_updated_node).unwrap().get_mut().source = update_arena.get(*update_node).unwrap().get().clone();
+                        }
+                    }
+                    // source_trees;
                 },
                 Err(_) => {},                
             };
@@ -180,21 +186,21 @@ where
                     //      -assign prev and curr hrtf filters
                     //      -calc mapping index to FDN input
                     let src = src_arena.get_mut(*src_node_id).unwrap().get_mut();
-                    let delay_time = src.get_dist() / C;
+                    let delay_time = src.source.get_dist() / C;
                     let delayline = buffer_arena.get_mut(*buffer_node_id).unwrap().get_mut(); 
                     delayline.delayline.set_delay_time_ms(delay_time, sample_rate);
                     
-                    src.set_prev_hrtf_id(src.get_curr_hrtf_id());
-                    src.set_curr_hrtf_id(hrtf_tree.find_closest_stereo_filter_angle(src.get_lst_src_transform().azimuth, src.get_lst_src_transform().elevation));
+                    src.source.set_prev_hrtf_id(src.source.get_curr_hrtf_id());
+                    src.source.set_curr_hrtf_id(hrtf_tree.find_closest_stereo_filter_angle(src.source.get_lst_src_transform().azimuth, src.source.get_lst_src_transform().elevation));
                     // *prev_hrtf_id = *curr_hrtf_id;
                     // // *curr_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(src.listener_source_orientation.azimuth, src.listener_source_orientation.elevation);  
-                    // *curr_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(src.get_lst_src_transform().azimuth, src.get_lst_src_transform().elevation);  
+// *curr_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(src.get_lst_src_transform().azimuth, src.get_lst_src_transform().elevation);  
                     // *curr_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(src.get_.azimuth, src.listener_source_orientation.elevation);  
                     let fdn_delayline_idx = map_ism_to_fdn_channel(n, fdn_n_dls);
                     // InnerLoop 2: 
                     // Iterate over samples (buffersize)
                     ism_output_buffer.iter_mut().zip(fdn_input_buf.buffer[fdn_delayline_idx].iter_mut()).for_each(|(mut ism_line_output, fdn_input)| {
-                    // ism_output_buffer.iter_mut().zip(fdn.matrix_inputs.iter_mut()).for_each(|(mut ism_line_output, fdn_input)| {
+// ism_output_buffer.iter_mut().zip(fdn.matrix_inputs.iter_mut()).for_each(|(mut ism_line_output, fdn_input)| {
                         //---------------------------------------
                         // read audio in per source
                         let sample_in = audio_file_managers[n].buffer.read();
@@ -204,7 +210,7 @@ where
                         // *fdn_input += *ism_line_output;
                         // map to FDN input channels
                         // let fdn_delayline_idx = map_ism_to_fdn_channel(n, fdn_n_dls);
-
+                        
 
                     }) 
                 })
