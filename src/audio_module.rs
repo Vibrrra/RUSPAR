@@ -11,7 +11,7 @@ use crate::{
     convolver::Spatializer,
     filter::{BinauralFilter, FFTManager, FilterStorage},
     buffers::CircularDelayBuffer, 
-    image_source_method::{SourceTrees, N_IS_INDEX_RANGES, is_per_model, Room}, 
+    image_source_method::{SourceTrees, N_IS_INDEX_RANGES, is_per_model, Room, SourceType, Source}, 
     readwav::AudioFileManager, 
     config::{MAX_SOURCES, audio_file_list, C, IMAGE_SOURCE_METHOD_ORDER}, 
     delaylines::DelayLine, 
@@ -20,7 +20,11 @@ use crate::{
 };
 
 //pub fn start_audio_thread(acoustic_scene: Arc<Mutex<ISMAcousticScene>>) {
-pub fn start_audio_thread(rx: Receiver<SourceTrees>, mut source_trees: SourceTrees, room: Room) {
+pub fn start_audio_thread<U>(rx: Receiver<SourceTrees<U>>, mut source_trees: SourceTrees<U>, room: Room) 
+where 
+    U: Send+Clone+SourceType<Source> + 'static,
+            
+{
     //pub fn start_audio_thread(scene_data: Arc<Mutex<ISMAcousticScene>>) {
     thread::spawn(move || {
         let host = cpal::default_host();
@@ -29,34 +33,34 @@ pub fn start_audio_thread(rx: Receiver<SourceTrees>, mut source_trees: SourceTre
 
         let audio_thread_result = match output_config.sample_format() {
             cpal::SampleFormat::I8 => {
-                run::<i8>(&output_device, &output_config.into(), rx, source_trees, room)
+                run::<i8, U>(&output_device, &output_config.into(), rx, source_trees, room)
             }
             cpal::SampleFormat::I16 => {
-                run::<i16>(&output_device, &output_config.into(), rx, source_trees, room)
+                run::<i16, U>(&output_device, &output_config.into(), rx, source_trees, room)
             }
             cpal::SampleFormat::I32 => {
-                run::<i32>(&output_device, &output_config.into(), rx, source_trees, room)
+                run::<i32, U>(&output_device, &output_config.into(), rx, source_trees, room)
             }
             cpal::SampleFormat::I64 => {
-                run::<i64>(&output_device, &output_config.into(), rx, source_trees, room)
+                run::<i64, U>(&output_device, &output_config.into(), rx, source_trees, room)
             }
             cpal::SampleFormat::U8 => {
-                run::<u8>(&output_device, &output_config.into(), rx, source_trees, room)
+                run::<u8, U>(&output_device, &output_config.into(), rx, source_trees, room)
             }
             cpal::SampleFormat::U16 => {
-                run::<u16>(&output_device, &output_config.into(), rx, source_trees, room)
+                run::<u16, U>(&output_device, &output_config.into(), rx, source_trees, room)
             }
             cpal::SampleFormat::U32 => {
-                run::<u32>(&output_device, &output_config.into(), rx, source_trees, room)
+                run::<u32, U>(&output_device, &output_config.into(), rx, source_trees, room)
             }
             cpal::SampleFormat::U64 => {
-                run::<u64>(&output_device, &output_config.into(), rx, source_trees, room)
+                run::<u64, U>(&output_device, &output_config.into(), rx, source_trees, room)
             }
             cpal::SampleFormat::F32 => {
-                run::<f32>(&output_device, &output_config.into(), rx, source_trees, room)
+                run::<f32, U>(&output_device, &output_config.into(), rx, source_trees, room)
             }
             cpal::SampleFormat::F64 => {
-                run::<f64>(&output_device, &output_config.into(), rx, source_trees, room)
+                run::<f64, U>(&output_device, &output_config.into(), rx, source_trees, room)
             }
             sample_format => panic!("Unsupported sample format '{sample_format}'"),
         };
@@ -65,15 +69,16 @@ pub fn start_audio_thread(rx: Receiver<SourceTrees>, mut source_trees: SourceTre
     });
 }
 
-fn run<T>(
+fn run<T, U>(
     devcice: &cpal::Device,
     config: &cpal::StreamConfig,
-    rx: Receiver<SourceTrees>,
-    mut source_trees: SourceTrees,
+    rx: Receiver<SourceTrees<U>>,
+    mut source_trees: SourceTrees<U>,
     room: Room,
 ) -> Result<(), anyhow::Error>
 where
     T: SizedSample + FromSample<f32>,
+    U: SourceType<Source> + Clone + Send + 'static,
 {
     let sample_rate = config.sample_rate.0 as f32;
     let channels = config.channels as usize;
@@ -93,7 +98,14 @@ where
     let (hrtf_storage, hrtf_tree) =
         FilterStorage::new(filterpath, anglepath, &mut fft_manager, buffer_size);
 
-    let mut spatializers: Vec<Spatializer> = vec![Spatializer::new(buffer_size, fft_manager, &hrtf_storage); MAX_SOURCES * is_per_model(ism_order, 6usize)];
+    // let mut spatializers: Vec<Spatializer> = vec![Spatializer::new(buffer_size, fft_manager, &hrtf_storage); MAX_SOURCES * is_per_model(ism_order, 6usize)];
+    let spatializer = Spatializer::new(buffer_size, fft_manager, &hrtf_storage); MAX_SOURCES * is_per_model(ism_order, 6usize);
+    // set spatializer for sources in source tree
+    source_trees.arenas.iter_mut().for_each(|arena| {
+        arena.iter_mut().for_each(|src| {
+            src.get_mut().set_spatializer(spatializer.clone());
+        })
+    });
 
     // TODO:: This should be handled by an init method providing start-up data from Unity for 
     let init_az_el: [f32; 2] = [0.0, 0.0];
@@ -149,7 +161,7 @@ where
 
             // OuterLoop 0:
             // iterate over all source- and buffer-trees and their respective node_lists 
-            source_trees.arenas.iter()
+            source_trees.arenas.iter_mut()
                     .zip(source_trees.node_lists.iter())
                     .enumerate()
                     .zip(buffer_trees.buffer_arenas.iter_mut().zip(buffer_trees.node_lists.iter()))
@@ -167,12 +179,17 @@ where
                     //      -set delaytimes for every delayline
                     //      -assign prev and curr hrtf filters
                     //      -calc mapping index to FDN input
-                    let src = src_arena.get(*src_node_id).unwrap().get();
-                    let delay_time = src.dist / C;
+                    let src = src_arena.get_mut(*src_node_id).unwrap().get_mut();
+                    let delay_time = src.get_dist() / C;
                     let delayline = buffer_arena.get_mut(*buffer_node_id).unwrap().get_mut(); 
                     delayline.delayline.set_delay_time_ms(delay_time, sample_rate);
-                    *prev_hrtf_id = *curr_hrtf_id;
-                    *curr_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(src.listener_source_orientation.azimuth, src.listener_source_orientation.elevation);  
+                    
+                    src.set_prev_hrtf_id(src.get_curr_hrtf_id());
+                    src.set_curr_hrtf_id(hrtf_tree.find_closest_stereo_filter_angle(src.get_lst_src_transform().azimuth, src.get_lst_src_transform().elevation));
+                    // *prev_hrtf_id = *curr_hrtf_id;
+                    // // *curr_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(src.listener_source_orientation.azimuth, src.listener_source_orientation.elevation);  
+                    // *curr_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(src.get_lst_src_transform().azimuth, src.get_lst_src_transform().elevation);  
+                    // *curr_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(src.get_.azimuth, src.listener_source_orientation.elevation);  
                     let fdn_delayline_idx = map_ism_to_fdn_channel(n, fdn_n_dls);
                     // InnerLoop 2: 
                     // Iterate over samples (buffersize)

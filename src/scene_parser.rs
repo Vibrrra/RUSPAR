@@ -1,9 +1,10 @@
 use nalgebra::{Vector3, Quaternion, UnitQuaternion};
 
 use crate::audioSceneHandlerData::{Scene_data, Transform};
-use crate::image_source_method::{SourceTrees, Room, update_source_tree_from_roots};
+use crate::image_source_method::{SourceTrees, Room, update_source_tree_from_roots, Source};
 
-pub fn update_scene(scene: &Scene_data, source_trees: &mut SourceTrees) {
+pub fn update_scene(scene: &Scene_data, source_trees: &mut SourceTrees<Source>) 
+{
     
     scene.sources.transforms.iter().zip(source_trees.roots.iter()).zip(source_trees.arenas.iter_mut()).for_each(|((transform, node_id), arena)| {
         let src = arena.get_mut(*node_id).unwrap().get_mut();

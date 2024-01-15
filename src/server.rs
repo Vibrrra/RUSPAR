@@ -2,7 +2,7 @@ use std::sync::mpsc;
 
 use crate::{
     audioSceneHandlerData::Scene_data, audio_module::start_audio_thread,
-    osc::OSCHandler, image_source_method::{SourceTrees, Room}, scene_parser::update_scene,
+    osc::OSCHandler, image_source_method::{SourceTrees, Room, Source}, scene_parser::update_scene,
 };
 use nalgebra::Vector3;
 use protobuf::Message;
@@ -26,7 +26,8 @@ pub fn start_server(port: u32) -> ! {
     let mut osc_handle = OSCHandler::new(&ip_addr);
 
     // config the engine hereo
-    let mut source_trees = SourceTrees::create(max_n_sources, ism_order);
+    let mut source_trees = SourceTrees::create(max_n_sources, ism_order, None);
+
     // let mut acoustic_scene: ISMAcousticScene = ISMAcousticScene::default();
     // let acoustic_scene = Arc::new(Mutex::new(ISMAcousticScene::default()));
     //let mut scene_data = Scene_data::default();
