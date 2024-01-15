@@ -155,7 +155,7 @@ pub struct FDNInputBuffer {
 impl FDNInputBuffer {
     pub fn new(number_of_lines: usize, buffer_size: usize) -> Self{
         Self {
-            buffer: vec![vec![0.0; number_of_lines]; number_of_lines],
+            buffer: vec![vec![0.0; buffer_size]; number_of_lines],
             wp: 0, }
     }
     pub fn flush(&mut self) {

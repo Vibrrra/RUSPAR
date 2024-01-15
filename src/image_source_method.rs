@@ -1,3 +1,5 @@
+use std::vec;
+
 use indextree::NodeId;
 use nalgebra::Vector3;
 use nalgebra::Quaternion;
@@ -210,23 +212,29 @@ pub trait SourceType<T> {
 }
 
 
-// pub struct ISMSource {
-//     pub source: Source,
-//     pub spatializer: Spatializer,
-//     pub curr_hrtf_id: usize,
-//     pub prev_hrtf_id: usize,
-// }
+pub struct ISMLine {
+    pub source: Source,
+    pub spatializer: Spatializer,
+    pub curr_hrtf_id: usize,
+    pub prev_hrtf_id: usize,
+    pub spatializer_input_buffer: Vec<f32>, 
+}
 
-// impl ISMSource {
-//     pub fn new(source: Source, spatializer: Spatializer, curr_hrtf_id: usize, prev_hrtf_id: usize) -> Self {
-//         Self {
-//             source, spatializer, curr_hrtf_id, prev_hrtf_id
-//         }
-//     }
-// }
+impl ISMLine {
+    pub fn new(source: Source, spatializer: Spatializer, curr_hrtf_id: usize, prev_hrtf_id: usize, block_size: usize) -> Self {
+        Self {
+            source, spatializer, curr_hrtf_id, prev_hrtf_id, spatializer_input_buffer: vec![0.0; block_size],
+        }
+    }
+
+    pub fn from(source: Source) -> Self {
+        
+        todo!()
+    }
+}
 
 
-// impl SourceType<ISMSource> for ISMSource {
+// impl SourceType<ISMLine> for ISMLine {
 //     fn get_dist(&self) -> f32 {
 //         self.source.dist
 //     }
@@ -248,7 +256,7 @@ pub trait SourceType<T> {
 //     fn get_src_lst_transform(&self) -> SphericalCoordinates {
 //         self.source.source_listener_orientation
 //     }
-//     fn create_ism(s: &ISMSource, r: &Room, b: &Reflected, may_have_spatializer: Option<Spatializer>) -> ISMSource {   
+//     fn create_ism(s: &ISMLine, r: &Room, b: &Reflected, may_have_spatializer: Option<Spatializer>) -> ISMLine {   
     
 //         let position = calc_ism_position(&s.source.position, r, b);
         
@@ -260,10 +268,10 @@ pub trait SourceType<T> {
 //             48000.0, 
 //             Some(b.clone()), None
 //         );
-//         ISMSource::new(src, s.spatializer.clone(), s.curr_hrtf_id, s.prev_hrtf_id)
+//         ISMLine::new(src, s.spatializer.clone(), s.curr_hrtf_id, s.prev_hrtf_id)
 //     }
 //     fn create_default(may_have_spatializer: Option<Spatializer>) -> Self {
-//         ISMSource::new(Source::default(), may_have_spatializer.unwrap(), 0, 0)
+//         ISMLine::new(Source::default(), may_have_spatializer.unwrap(), 0, 0)
 //     }
 //     fn get_spatializer(&self) -> Option<Spatializer> {
 //         self.source.spatializer.clone()
