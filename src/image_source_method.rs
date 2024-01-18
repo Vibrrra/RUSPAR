@@ -212,12 +212,15 @@ pub trait SourceType<T> {
 }
 
 #[derive(Clone)]
-pub struct ISMLine<U> {
+pub struct ISMLine<U> 
+where U: SourceType<Source>
+{
     pub source: U,
     pub spatializer_input_buffer: Vec<f32>, 
 }
 
-impl<U> ISMLine<U> 
+impl<U> ISMLine<U>  
+where U: SourceType<Source>
 {
     
     pub fn new(source: U, block_size: usize) -> Self {

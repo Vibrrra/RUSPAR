@@ -131,7 +131,7 @@ U: SourceType<Source> + Clone + Send + 'static,
     let mut fdn_input_buf: FDNInputBuffer = FDNInputBuffer::new(fdn_n_dls, buffer_size);
     let mut fnd_output_buf: FDNInputBuffer = FDNInputBuffer::new(fdn_n_dls, buffer_size);
     // let fdn_dl_lengths = calc_fdn_delayline_lengths(fdn_n_dls, &room.dimension, C);
-let mut fdn = FeedbackDelayNetwork::from_assets(fdn_n_dls, buffer_size,  delay_line_lengths, B_FDN, A_FDN, B_FDN_TC, A_FDN_TC);
+    let mut fdn = FeedbackDelayNetwork::from_assets(fdn_n_dls, buffer_size,  delay_line_lengths, B_FDN, A_FDN, B_FDN_TC, A_FDN_TC);
 
     // let mut fdn = FeedbackDelayNetwork::new(fdn_dl_lengths);
     // Init AudioFileManager
@@ -192,6 +192,8 @@ let mut fdn = FeedbackDelayNetwork::from_assets(fdn_n_dls, buffer_size,  delay_l
                     
                     src.source.set_prev_hrtf_id(src.source.get_curr_hrtf_id());
                     src.source.set_curr_hrtf_id(hrtf_tree.find_closest_stereo_filter_angle(src.source.get_lst_src_transform().azimuth, src.source.get_lst_src_transform().elevation));
+                    
+
                     // *prev_hrtf_id = *curr_hrtf_id;
                     // // *curr_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(src.listener_source_orientation.azimuth, src.listener_source_orientation.elevation);  
 // *curr_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(src.get_lst_src_transform().azimuth, src.get_lst_src_transform().elevation);  
@@ -226,7 +228,13 @@ let mut fdn = FeedbackDelayNetwork::from_assets(fdn_n_dls, buffer_size,  delay_l
                 });
             }
 
-
+            source_trees.arenas.iter_mut().zip(source_trees.node_lists.iter()).for_each(|(arena, node_list)| {
+                node_list.iter().for_each(|node_id|{
+                    let src = arena.get_mut(*node_id).unwrap().get_mut();
+                    src.source.get_spatializer().unwrap().process(&src.spatializer_input_buffer, data, hrtf_storage.get_binaural_filter( src.source.get_curr_hrtf_id()), hrtf_storage.get_binaural_filter(src.source.get_prev_hrtf_id()));
+                })
+            });
+            
             // HRTF stuff
 
             todo!()
