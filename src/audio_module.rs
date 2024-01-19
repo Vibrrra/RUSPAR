@@ -15,7 +15,7 @@ use crate::{
     readwav::AudioFileManager, 
     config::{MAX_SOURCES, audio_file_list, C, IMAGE_SOURCE_METHOD_ORDER}, 
     delaylines::DelayLine, 
-    fdn::{FeedbackDelayNetwork, calc_fdn_delayline_lengths, map_ism_to_fdn_channel, FDNInputBuffer},
+    fdn::{FeedbackDelayNetwork, calc_fdn_delayline_lengths, map_ism_to_fdn_channel, FDNInputBuffer, calc_hrtf_sphere_points},
 assets::{DL_S, A_FDN, B_FDN, A_FDN_TC, B_FDN_TC}
 };
 
@@ -129,9 +129,23 @@ U: SourceType<Source> + Clone + Send + 'static,
     let fdn_n_dls: usize = 24;
     let delay_line_lengths: Vec<usize>  = DL_S.iter().map(|x| {(x*sample_rate).ceil() as usize}).collect();
     let mut fdn_input_buf: FDNInputBuffer = FDNInputBuffer::new(fdn_n_dls, buffer_size);
-    let mut fnd_output_buf: FDNInputBuffer = FDNInputBuffer::new(fdn_n_dls, buffer_size);
+    let mut fdn_output_buf: FDNInputBuffer = FDNInputBuffer::new(fdn_n_dls, buffer_size);
     // let fdn_dl_lengths = calc_fdn_delayline_lengths(fdn_n_dls, &room.dimension, C);
     let mut fdn = FeedbackDelayNetwork::from_assets(fdn_n_dls, buffer_size,  delay_line_lengths, B_FDN, A_FDN, B_FDN_TC, A_FDN_TC);
+
+    // init HRTF spatializer
+    let fdn_hrtf_coords = calc_hrtf_sphere_points(24);
+    let mut fdn_spatializers: Vec<Spatializer> = Vec::with_capacity(24);
+    // let mut fdn_prev_hrtf_idx = Vec::new();
+    let mut fdn_curr_hrtf_idx = Vec::new();
+    // let mut fdn_hrtfs = Vec::new();
+    fdn_spatializers.iter_mut().zip(fdn_hrtf_coords.iter()).for_each(|(sp,coords)| {
+        let idx = hrtf_tree.find_closest_stereo_filter_angle(coords.0, coords.1); 
+        let spat = spatializer.clone();
+        fdn_curr_hrtf_idx.push(idx);
+        //fdn_hrtfs.push(hrtf_storage.get_binaural_filter(idx));
+        *sp = spat;
+    });
 
     // let mut fdn = FeedbackDelayNetwork::new(fdn_dl_lengths);
     // Init AudioFileManager
@@ -221,7 +235,7 @@ U: SourceType<Source> + Clone + Send + 'static,
             // fdn.matrix_inputs.iter_mut().for_each(||)
             // fdn.process(fnd_input_buf, fdn_ou)
             for i in 0..buffer_size {
-                fdn.delaylines.iter_mut().zip(fdn.matrix_outputs.iter()).zip(fdn.matrix_inputs.iter_mut()).zip(fnd_output_buf.buffer.iter_mut()).zip(fdn_input_buf.buffer.iter())
+                fdn.delaylines.iter_mut().zip(fdn.matrix_outputs.iter()).zip(fdn.matrix_inputs.iter_mut()).zip(fdn_output_buf.buffer.iter_mut()).zip(fdn_input_buf.buffer.iter())
                 .for_each(|((((fdn_in, mat_out),mat_in),fdn_out), fdn_input_buf)| {
                     *mat_in = fdn_in.tick(fdn_input_buf[i]+mat_out);
                     fdn_out[i] = *mat_in;
@@ -236,7 +250,9 @@ U: SourceType<Source> + Clone + Send + 'static,
             });
             
             // HRTF stuff
-
+            fdn_output_buf.buffer.iter().zip(fdn_spatializers.iter_mut()).zip(fdn_curr_hrtf_idx.iter()).for_each(|((fdn_ob, sp), h_idx)| {
+                sp.process(fdn_ob, data, hrtf_storage.get_binaural_filter(*h_idx), hrtf_storage.get_binaural_filter(*h_idx));
+            }); 
             todo!()
         },
         error_callback,

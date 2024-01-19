@@ -1,4 +1,4 @@
-use std::sync::mpsc;
+use std::{sync::mpsc, thread::sleep, time::Duration};
 
 use crate::{
     audioSceneHandlerData::Scene_data, audio_module::start_audio_thread,
@@ -46,6 +46,8 @@ pub fn start_server(port: u32) -> ! {
         let scene_data = Scene_data::parse_from_bytes(&byte_string[..]).unwrap();
         update_scene(&scene_data, &mut source_trees);
         tx.send(source_trees.clone()).unwrap();
-        //
+
+        // experimental. forcing loop to be a bit chill
+        sleep(Duration::from_millis(10));
     }
 }

@@ -190,7 +190,14 @@ pub fn calc_fdn_delayline_lengths(number_of_lines: usize, room_dims: &Vector3<f3
     tau
 }
 
-pub fn calc_hrtf_sphere_points(N: usize) -> Vec<Vec<f32>>{
+fn cart2sph(x:f32, y:f32, z:f32) -> Vec<f32> {
+    let azimuth = y.atan2(x);
+    let elevation = z.atan2((x.powi(2)+y.powi(2)).sqrt());
+    let r = (x.powi(2)+y.powi(2)+z.powi(2)).sqrt();
+    vec![azimuth, elevation, r]
+}
+
+pub fn calc_hrtf_sphere_points(N: usize) -> Vec<(f32, f32)>{
     let mut az: Vec<f32> = Vec::with_capacity(N);
     let mut el: Vec<f32> = Vec::with_capacity(N);
     let mut spherical_coordinates = Vec::new();
@@ -198,7 +205,15 @@ pub fn calc_hrtf_sphere_points(N: usize) -> Vec<Vec<f32>>{
 
     for i in 0..N {
         let y = 1.0 - ((i as f32) / ((N as f32) -1.0 )) * 2.0;
-
+        let radius = (1.0 - y * y).sqrt();
+        let theta = phi * (i as f32);
+        let x = (theta).cos() * radius;
+        let z = (theta).sin() * radius;
+        let mut sphc = cart2sph(x, y, z);
+        sphc.iter_mut().for_each(|x| {*x = 180.0*  (*x) / PI});
+        spherical_coordinates.push((sphc[0].rem_euclid(360.0), sphc[1]));
+    }
+    spherical_coordinates
 //         function [azi, eli] = get_equidist_points_on_sphere(N)
 
 // phi = pi * (sqrt(5) -1);
@@ -217,9 +232,9 @@ pub fn calc_hrtf_sphere_points(N: usize) -> Vec<Vec<f32>>{
 // azi = rad2deg(azi);
 // eli = rad2deg(eli);
 // end
-    }    
+        
 
-    todo!()
+    
 }
 
 pub fn map_ism_to_fdn_channel(channel_index: usize, n_fdn_lines: usize) -> usize {
@@ -239,4 +254,11 @@ fn test_fdn_dl_creation() {
     fdnls.iter_mut().for_each(|y|{*y*=48000.0; *y=y.round();});
     println!("{:?}",fdnls)
 
+}
+
+#[test]
+fn test_spherical_coords() {
+    let N: usize = 24;
+    let points = calc_hrtf_sphere_points(N);
+    points.iter().for_each(|x| {println!("{:?} ", x)});
 }
