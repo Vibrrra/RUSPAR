@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use crate::{
     buffers,
     mixingmatrix::{process_hdm12, process_hdm24}, iir_filter::{IIRFilter, IIRFilterCoefficients},
@@ -188,7 +190,37 @@ pub fn calc_fdn_delayline_lengths(number_of_lines: usize, room_dims: &Vector3<f3
     tau
 }
 
+pub fn calc_hrtf_sphere_points(N: usize) -> Vec<Vec<f32>>{
+    let mut az: Vec<f32> = Vec::with_capacity(N);
+    let mut el: Vec<f32> = Vec::with_capacity(N);
+    let mut spherical_coordinates = Vec::new();
+    let phi = PI * ((5.0f32).sqrt() - 1.0f32);
 
+    for i in 0..N {
+        let y = 1.0 - ((i as f32) / ((N as f32) -1.0 )) * 2.0;
+
+//         function [azi, eli] = get_equidist_points_on_sphere(N)
+
+// phi = pi * (sqrt(5) -1);
+
+// c = 1;
+// for i = 0 : N-1
+//     y = 1 - (i / (N-1)) * 2;
+//     radius = sqrt(1- y*y);
+//     theta  = phi * i;
+//     x = cos(theta) * radius;
+//     z = sin(theta) * radius;
+
+//     [azi(c), eli(c), ~] = cart2sph(x,y,z);
+//     c = c+1;
+// end
+// azi = rad2deg(azi);
+// eli = rad2deg(eli);
+// end
+    }    
+
+    todo!()
+}
 
 pub fn map_ism_to_fdn_channel(channel_index: usize, n_fdn_lines: usize) -> usize {
     channel_index % n_fdn_lines
