@@ -1,4 +1,4 @@
-use bit_mask_ring_buf::{self, BMRingBuf};
+use bit_mask_ring_buf::{self, next_pow_of_2, BMRingBuf};
 
 #[derive(Debug, Clone)]
 pub struct CircularDelayBuffer {
@@ -9,8 +9,9 @@ pub struct CircularDelayBuffer {
 
 impl CircularDelayBuffer {
     pub fn new(length: usize) -> Self {
+        let len = next_pow_of_2(length);
         Self {
-            rb: BMRingBuf::<f32>::from_len(length),
+            rb: BMRingBuf::<f32>::from_len(len),
             wp: 0,
             rp: 1.0,
         }

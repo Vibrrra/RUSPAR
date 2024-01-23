@@ -1,6 +1,8 @@
+use std::thread::current;
 use std::vec;
 
 use indextree::NodeId;
+use nalgebra::coordinates::XYZ;
 use nalgebra::Vector3;
 use nalgebra::Quaternion;
 use num_traits::Zero;
@@ -79,6 +81,7 @@ pub struct Source {
     pub listener_source_orientation: SphericalCoordinates,
     // pub buffer: CircularDelayBuffer,
     pub dist: f32,
+    pub remaining_dist: f32,
     pub reflector: Reflected,
     pub spatializer: Option<Spatializer>,
     pub curr_hrtf_id: usize,
@@ -118,6 +121,7 @@ impl Source {
                 // (sample_rate * room.diagonal() / speed_of_sound).ceil() as usize,
             // ),
             dist,
+            remaining_dist: 0.0,
             reflector: refl,
             source_listener_orientation,
             listener_source_orientation,
@@ -138,6 +142,9 @@ impl SourceType<Source> for Source {
     fn get_dist(&self) -> f32 {
         self.dist
     }
+    fn set_dist(&mut self, dist: f32) {
+        self.dist = dist;
+    }
     fn get_orientation(&self) -> Quaternion<f32> {
         self.orientation
     }
@@ -156,7 +163,7 @@ impl SourceType<Source> for Source {
     fn get_src_lst_transform(&self) -> SphericalCoordinates {
         self.source_listener_orientation
     }
-    fn create_ism(s: &Source, r: &Room, b: &Reflected, may_have_spatializer: Option<Spatializer>) -> Source {   
+    fn create_ism(s: &Source, r: &Room, b: &Reflected, _may_have_spatializer: Option<Spatializer>) -> Source {   
     
         let position = calc_ism_position(&s.position, r, b);
      
@@ -190,6 +197,9 @@ impl SourceType<Source> for Source {
     fn set_prev_hrtf_id(&mut self, prev_hrtf_id: usize) {
         self.prev_hrtf_id = prev_hrtf_id;
     }
+    fn set_remaining_dist(&mut self, dist: f32) {
+        self.remaining_dist = dist;
+    }
 }
 
 
@@ -199,9 +209,10 @@ pub trait SourceType<T> {
     fn get_orientation(&self) -> Quaternion<f32>;
     fn get_reflector(&self) -> &Reflected;
     fn get_dist(&self) -> f32;
+    fn set_dist(&mut self, dist: f32);
     fn get_src_lst_transform(&self) -> SphericalCoordinates;
     fn get_lst_src_transform(&self) -> SphericalCoordinates;
-    fn create_ism(src: &T, room: &Room, b: &Reflected,may_have_spatializer: Option<Spatializer> ) -> T; 
+    fn create_ism(src: &T, room: &Room, b: &Reflected,may_have_spatializer: Option<Spatializer>) -> T; 
     fn create_default(may_have_spatializer: Option<Spatializer>) -> Self;
     fn get_spatializer(&self) -> Option<Spatializer>;
     fn set_spatializer(&mut self, Spatializer: Spatializer);
@@ -209,6 +220,7 @@ pub trait SourceType<T> {
     fn set_prev_hrtf_id(&mut self, curr_id_hrtf: usize);
     fn get_curr_hrtf_id(&self, ) -> usize;
     fn get_prev_hrtf_id(&self, ) -> usize;
+    fn set_remaining_dist(&mut self, dist: f32);
 }
 
 #[derive(Clone)]
@@ -238,6 +250,9 @@ where U: SourceType<Source>
 impl SourceType<ISMLine<Source>> for ISMLine<Source> {
     fn get_dist(&self) -> f32 {
         self.source.dist
+    }
+    fn set_dist(&mut self, dist: f32) {
+        self.source.dist = dist;
     }
     fn get_orientation(&self) -> Quaternion<f32> {
         self.source.orientation
@@ -293,6 +308,9 @@ impl SourceType<ISMLine<Source>> for ISMLine<Source> {
     fn set_prev_hrtf_id(&mut self, prev_hrtf_id: usize) {
         self.source.prev_hrtf_id = prev_hrtf_id;
     }
+    fn set_remaining_dist(&mut self, dist: f32) {
+        self.source.remaining_dist = dist;
+    }
 }
 
 // for <U>
@@ -303,6 +321,11 @@ impl SourceType<ISMLine<Source>> for ISMLine<Source> {
 pub struct Listener {
     pub position: Vector3<f32>,
     pub orientation: Quaternion<f32>,
+}
+impl Listener {
+    pub fn get_pos(&self) -> Vector3<f32> {
+        self.position
+    }
 }
 
 
@@ -395,7 +418,7 @@ where T: Clone + SourceType<T>
     //(arena, node_list)
 }
 
-pub fn update_source_tree<T, U>(source_trees: &mut SourceTrees<T>, sources: Vec<Source>, room: &Room) 
+pub fn update_source_tree<T, U>(source_trees: &mut SourceTrees<T>, sources: Vec<Source>, room: &Room, listener: &Listener) 
 where T: SourceType<U> + Clone
 {
     // let offset = is_per_model(ism_order, 6);
@@ -407,10 +430,15 @@ where T: SourceType<U> + Clone
             let parent_node = source_trees.arenas[n].get(source_trees.node_lists[n][i]).unwrap().parent();
             match parent_node {
                 Some(pn) => {
+                    let parent_dist = source_trees.arenas[n].get(pn).unwrap().get().get_dist();
                     let parent_position: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = 
-                        source_trees.arenas[n].get(pn).unwrap().get().get_pos();
+                         source_trees.arenas[n].get(pn).unwrap().get().get_pos();
+                    // let parent_position: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = 
+                    //     parent_src.get_pos();
                     let current_node: &mut T = source_trees.arenas[n].get_mut(source_trees.node_lists[n][i]).unwrap().get_mut();
                     *current_node.get_pos() = *calc_ism_position(&parent_position, room, &current_node.get_reflector());
+                    current_node.set_dist(calc_distance(&current_node.get_pos(), &listener.get_pos()));
+                    current_node.set_remaining_dist( current_node.get_dist()-parent_dist);
                 },
                 None => {
                     let data = source_trees.arenas[n].get_mut(source_trees.node_lists[n][i]).unwrap().get_mut();
@@ -506,6 +534,7 @@ fn calc_distance(v1: &Vector3<f32>, v2: &Vector3<f32>) -> f32 {
      (v1.z-v2.z).powi(2)).sqrt()
 }
 
+// fn calc_listener_drc_dist(v1: &Vector3<f32>, v2: &Vector3<f32>)
 
 // TEEEEEESSSSSTS 
 #[cfg(test)]
@@ -544,7 +573,7 @@ fn test_ism_tree_update() {
     for i in src_tree.node_lists[0].iter().enumerate() {
         println!("Nr.: {}, {:?}", i.0, src_tree.arenas[0].get(*i.1).unwrap().get().position);
     }
-    update_source_tree(&mut src_tree, vec![ssrc2], &room);
+    update_source_tree(&mut src_tree, vec![ssrc2], &room, &listener);
     
     for i in src_tree.node_lists[0].iter().enumerate() {
         println!("Nr.: {}, {:?}", i.0, src_tree.arenas[0].get(*i.1).unwrap().get().position);

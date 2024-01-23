@@ -2,9 +2,8 @@ use std::{sync::mpsc, thread::sleep, time::Duration};
 
 use crate::{
     audioSceneHandlerData::Scene_data, audio_module::start_audio_thread,
-    osc::OSCHandler, image_source_method::{SourceTrees, Room, Source}, scene_parser::update_scene,
+    osc::OSCHandler, image_source_method::{SourceTrees, Room}, scene_parser::update_scene,
 };
-use nalgebra::Vector3;
 use protobuf::Message;
 
 // test struct. Don't what to send to the audio lopp yet
