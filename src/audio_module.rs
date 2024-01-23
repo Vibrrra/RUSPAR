@@ -195,6 +195,7 @@ U: SourceType<Source> + Clone + Send + 'static,
                         .zip(ism_output_buffers.iter_mut())        
                         .enumerate()
                         .for_each(|(n, (((src_node_id, buffer_node_id), (prev_hrtf_id, curr_hrtf_id)), ism_output_buffer))| {
+                    
                     // ---------------------------------------------                   
                     //      -set delaytimes for every delayline
                     //      -assign prev and curr hrtf filters
@@ -203,20 +204,14 @@ U: SourceType<Source> + Clone + Send + 'static,
                     let delay_time = src.source.get_dist() / C;
                     let delayline = buffer_arena.get_mut(*buffer_node_id).unwrap().get_mut(); 
                     delayline.delayline.set_delay_time_ms(delay_time, sample_rate);
-                    
                     src.source.set_prev_hrtf_id(src.source.get_curr_hrtf_id());
                     src.source.set_curr_hrtf_id(hrtf_tree.find_closest_stereo_filter_angle(src.source.get_lst_src_transform().azimuth, src.source.get_lst_src_transform().elevation));
                     
-
-                    // *prev_hrtf_id = *curr_hrtf_id;
-                    // // *curr_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(src.listener_source_orientation.azimuth, src.listener_source_orientation.elevation);  
-// *curr_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(src.get_lst_src_transform().azimuth, src.get_lst_src_transform().elevation);  
-                    // *curr_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(src.get_.azimuth, src.listener_source_orientation.elevation);  
                     let fdn_delayline_idx = map_ism_to_fdn_channel(n, fdn_n_dls);
+                    
                     // InnerLoop 2: 
                     // Iterate over samples (buffersize)
                     ism_output_buffer.iter_mut().zip(fdn_input_buf.buffer[fdn_delayline_idx].iter_mut()).for_each(|(mut ism_line_output, fdn_input)| {
-// ism_output_buffer.iter_mut().zip(fdn.matrix_inputs.iter_mut()).for_each(|(mut ism_line_output, fdn_input)| {
                         //---------------------------------------
                         // read audio in per source
                         let sample_in = audio_file_managers[n].buffer.read();
@@ -226,8 +221,6 @@ U: SourceType<Source> + Clone + Send + 'static,
                         // *fdn_input += *ism_line_output;
                         // map to FDN input channels
                         // let fdn_delayline_idx = map_ism_to_fdn_channel(n, fdn_n_dls);
-                        
-
                     }) 
                 })
             });   
