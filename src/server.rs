@@ -25,7 +25,7 @@ pub fn start_server(port: u32) -> ! {
     let mut osc_handle = OSCHandler::new(&ip_addr);
 
     // config the engine hereo
-    let mut source_trees = SourceTrees::create(max_n_sources, ism_order, None);
+    let mut source_trees: SourceTrees<crate::image_source_method::Source> = SourceTrees::create(max_n_sources, ism_order, None);
 
     // let mut acoustic_scene: ISMAcousticScene = ISMAcousticScene::default();
     // let acoustic_scene = Arc::new(Mutex::new(ISMAcousticScene::default()));
@@ -40,11 +40,11 @@ pub fn start_server(port: u32) -> ! {
     sleep(Duration::from_millis(2000));
     loop {
         // receive from adress
-        let byte_string = osc_handle.try_recv();
+        // let byte_string = osc_handle.try_recv();
 
-        // parse byte string to protobuf struct
-        let scene_data = Scene_data::parse_from_bytes(&byte_string[..]).unwrap();
-        update_scene(&scene_data, &mut source_trees);
+        // // parse byte string to protobuf struct
+        // let scene_data = Scene_data::parse_from_bytes(&byte_string[..]).unwrap();
+        // update_scene(&scene_data, &mut source_trees);
         let tx_res = tx.send(source_trees.clone()); //.unwrap();
         match tx_res {
             Ok(_) => {},

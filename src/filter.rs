@@ -339,6 +339,31 @@ fn pad_zeros(vector: &[f32], n: usize) -> Vec<f32> {
     new_values
 }
 
+// Different method for reading binary data as f32
+// Reader struct
+struct F32Reader<R: io::BufRead> {
+    inner: R,
+}
+// methods - only constructor 
+impl<R: io::BufRead> F32Reader<R> {
+    pub fn new(inner: R) -> Self {
+        Self{
+            inner
+        }
+    }
+}
+// Implementing Iterator for the Reader
+impl<R: io::BufRead> Iterator for F32Reader<R> {
+    type Item = f32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut buff: [u8; 4] = [0;4];
+        self.inner.read_exact(&mut buff).ok()?;
+        Some(f32::from_be_bytes(buff))
+    }
+}
+
+// Impulse signal creator
 #[allow(unused)]
 pub fn impulse(length: usize) -> Vec<f32> {
     let mut impulse = vec![0.0f32; length];

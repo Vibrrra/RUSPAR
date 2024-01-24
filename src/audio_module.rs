@@ -3,14 +3,14 @@ use cpal::{
 };
 use indextree::{Arena, NodeId};
 use nalgebra::Vector3;
-use std::sync::mpsc::Receiver;
+use std::{sync::mpsc::Receiver, time::Duration};
 use std::thread;
 
 use crate::{
     convolver::Spatializer,
     filter::{BinauralFilter, FFTManager, FilterStorage},
     buffers::CircularDelayBuffer, 
-    image_source_method::{SourceTrees, N_IS_INDEX_RANGES, is_per_model, Room, SourceType, Source, from_source_tree}, 
+    image_source_method::{from_source_tree, is_per_model, ISMLine, Room, Source, SourceTrees, SourceType, N_IS_INDEX_RANGES}, 
     readwav::AudioFileManager, 
     config::{MAX_SOURCES, audio_file_list, C, IMAGE_SOURCE_METHOD_ORDER}, 
     delaylines::DelayLine, 
@@ -109,14 +109,14 @@ U: SourceType<Source> + Clone + Send + 'static,
     };
     let error_callback = |err| eprintln!("Error occured on stream: {}", err);
 
-    let filterpath: &str = "D:/Programming/Matlab/Datasets/HRTFs/Aachen/hrtf_binary.dat";
-    let anglepath: &str = "D:/Programming/Matlab/Datasets/HRTFs/Aachen/angles.dat";
+    let filterpath: &str = "C:/Users/cschneiderwind/Documents/RUST/RUSPAR/assets/hrtf_binary.dat";
+    let anglepath: &str =  "C:/Users/cschneiderwind/Documents/RUST/RUSPAR/assets/angles.dat";
     
     let ism_order = 2;
     
     // Init receive 
     let mut source_trees = from_source_tree(source_trees, buffer_size);
-    let source_trees_update = rx.recv().unwrap();
+    // let source_trees_update = rx.recv().unwrap();
 
     // Init Spatializer
     let mut fft_manager = FFTManager::new(buffer_size);
@@ -192,7 +192,7 @@ U: SourceType<Source> + Clone + Send + 'static,
             // flush some buffers
             fdn_input_buf.flush();
 
-            write_data(data, channels, &mut next_value);
+            // write_data(data, channels, &mut next_value);
             // Receive Updates
             match rx.try_recv() {
                 Ok(data) => {
@@ -203,88 +203,88 @@ U: SourceType<Source> + Clone + Send + 'static,
                         }
                     }
                     // source_trees;
+                println!("recv")
                 },
                 Err(_) => {},                
             };
 
-            // // Update ISM and probably (FDN)
+            // Update ISM and probably (FDN)
+            // OuterLoop 0:
+            // iterate over all source- and buffer-trees and their respective node_lists 
+            source_trees.arenas.iter_mut()
+                    .zip(source_trees.node_lists.iter())
+                    .enumerate()
+                    .zip(buffer_trees.buffer_arenas.iter_mut().zip(buffer_trees.node_lists.iter()))
+                    .for_each(|((n,(src_arena, src_node_list)), (buffer_arena, buffer_node_list))| {
 
-            // // OuterLoop 0:
-            // // iterate over all source- and buffer-trees and their respective node_lists 
-            // source_trees.arenas.iter_mut()
-            //         .zip(source_trees.node_lists.iter())
-            //         .enumerate()
-            //         .zip(buffer_trees.buffer_arenas.iter_mut().zip(buffer_trees.node_lists.iter()))
-            //         .for_each(|((n,(src_arena, src_node_list)), (buffer_arena, buffer_node_list))| {
-
-            //     // InnerLoop 1:
-            //     // for every source- and buffer-tree iterate over the individual (image) sources, hrtfs, buffers, delaylines.
-            //     src_node_list.iter()
-            //             .zip(buffer_node_list.iter())
-            //             .zip(prev_hrtf_ids.iter_mut().zip(curr_hrtf_ids.iter_mut()))
-            //             .zip(ism_output_buffers.iter_mut())        
-            //             .enumerate()
-            //             .for_each(|(n, (((src_node_id, buffer_node_id), (prev_hrtf_id, curr_hrtf_id)), ism_output_buffer))| {
+                // InnerLoop 1:
+                // for every source- and buffer-tree iterate over the individual (image) sources, hrtfs, buffers, delaylines.
+                src_node_list.iter()
+                        .zip(buffer_node_list.iter())
+                        .zip(prev_hrtf_ids.iter_mut().zip(curr_hrtf_ids.iter_mut()))
+                        .zip(ism_output_buffers.iter_mut())        
+                        .enumerate()
+                        .for_each(|(n, (((src_node_id, buffer_node_id), (prev_hrtf_id, curr_hrtf_id)), ism_output_buffer))| {
                     
-            //         // ---------------------------------------------                   
-            //         //      -set delaytimes for every delayline
-            //         //      -assign prev and curr hrtf filters
-            //         //      -calc mapping index to FDN input
-            //         let src = src_arena.get_mut(*src_node_id).unwrap().get_mut();
-            //         let delay_time = src.source.get_dist() / C;
-            //         let delayline = buffer_arena.get_mut(*buffer_node_id).unwrap().get_mut(); 
-            //         delayline.delayline.set_delay_time_ms(delay_time, sample_rate);
-            //         src.source.set_prev_hrtf_id(src.source.get_curr_hrtf_id());
-            //         src.source.set_curr_hrtf_id(hrtf_tree.find_closest_stereo_filter_angle(src.source.get_lst_src_transform().azimuth, src.source.get_lst_src_transform().elevation));
+                    // ---------------------------------------------                   
+                    //      -set delaytimes for every delayline
+                    //      -assign prev and curr hrtf filters
+                    //      -calc mapping index to FDN input
+                    let src = src_arena.get_mut(*src_node_id).unwrap().get_mut();
+                    let delay_time = src.source.get_dist() / C;
+                    let delayline = buffer_arena.get_mut(*buffer_node_id).unwrap().get_mut(); 
+                    delayline.delayline.set_delay_time_ms(delay_time, sample_rate);
+                    src.source.set_prev_hrtf_id(src.source.get_curr_hrtf_id());
+                    src.source.set_curr_hrtf_id(hrtf_tree.find_closest_stereo_filter_angle(src.source.get_lst_src_transform().azimuth, src.source.get_lst_src_transform().elevation));
                     
-            //         let fdn_delayline_idx = map_ism_to_fdn_channel(n, fdn_n_dls);
+                    let fdn_delayline_idx = map_ism_to_fdn_channel(n, fdn_n_dls);
                     
-            //         // InnerLoop 2: 
-            //         // Iterate over samples (buffersize)
-            //         ism_output_buffer.iter_mut().zip(fdn_input_buf.buffer[fdn_delayline_idx].iter_mut()).for_each(|(mut ism_line_output, fdn_input)| {
-            //             //---------------------------------------
-            //             // read audio in per source
-            //             let sample_in = audio_file_managers[n].buffer.read();
+                    // InnerLoop 2: 
+                    // Iterate over samples (buffersize)
+                    ism_output_buffer.iter_mut().zip(fdn_input_buf.buffer[fdn_delayline_idx].iter_mut()).for_each(|(mut ism_line_output, fdn_input)| {
+                        //---------------------------------------
+                        // read audio in per source
+                        let sample_in = audio_file_managers[n].buffer.read();
                         
-            //             // process delaylines and store output buffer (-> spatializer)
-            //             *ism_line_output = delayline.delayline.process(sample_in);           
-            //             // *fdn_input += *ism_line_output;
-            //             // map to FDN input channels
-            //             // let fdn_delayline_idx = map_ism_to_fdn_channel(n, fdn_n_dls);
-            //         }) 
-            //     })
-            // });   
+                        // process delaylines and store output buffer (-> spatializer)
+                        *ism_line_output = delayline.delayline.process(sample_in);           
+                        // *fdn_input += *ism_line_output;
+                        // map to FDN input channels
+                        // let fdn_delayline_idx = map_ism_to_fdn_channel(n, fdn_n_dls);
+                    }) 
+                })
+            });   
 
-            // // fdn.matrix_inputs.iter_mut().for_each(||)
-            // // fdn.process(fnd_input_buf, fdn_ou)
-            // for i in 0..buffer_size {
-            //     fdn.delaylines.iter_mut().zip(fdn.matrix_outputs.iter()).zip(fdn.matrix_inputs.iter_mut()).zip(fdn_output_buf.buffer.iter_mut()).zip(fdn_input_buf.buffer.iter())
-            //     .for_each(|((((fdn_in, mat_out),mat_in),fdn_out), fdn_input_buf)| {
-            //         *mat_in = fdn_in.tick(fdn_input_buf[i]+mat_out);
-            //         fdn_out[i] = *mat_in;
-            //     });
-            // }
+            // fdn.matrix_inputs.iter_mut().for_each(||)
+            // fdn.process(fnd_input_buf, fdn_ou)
+            for i in 0..buffer_size {
+                fdn.delaylines.iter_mut().zip(fdn.matrix_outputs.iter()).zip(fdn.matrix_inputs.iter_mut()).zip(fdn_output_buf.buffer.iter_mut()).zip(fdn_input_buf.buffer.iter())
+                .for_each(|((((fdn_in, mat_out),mat_in),fdn_out), fdn_input_buf)| {
+                    *mat_in = fdn_in.tick(fdn_input_buf[i]+mat_out);
+                    fdn_out[i] = *mat_in;
+                });
+            }
 
-            // source_trees.arenas.iter_mut().zip(source_trees.node_lists.iter()).for_each(|(arena, node_list)| {
-            //     node_list.iter().for_each(|node_id|{
-            //         let src = arena.get_mut(*node_id).unwrap().get_mut();
-            //         src.source.get_spatializer().unwrap().process(&src.spatializer_input_buffer, data, hrtf_storage.get_binaural_filter( src.source.get_curr_hrtf_id()), hrtf_storage.get_binaural_filter(src.source.get_prev_hrtf_id()));
-            //     })
-            // });
+            source_trees.arenas.iter_mut().zip(source_trees.node_lists.iter()).for_each(|(arena, node_list)| {
+                node_list.iter().for_each(|node_id|{
+                    let src: &mut ISMLine<U> = arena.get_mut(*node_id).unwrap().get_mut();
+                    src.source.get_spatializer().unwrap().process(&src.spatializer_input_buffer, data, hrtf_storage.get_binaural_filter( src.source.get_curr_hrtf_id()), hrtf_storage.get_binaural_filter(src.source.get_prev_hrtf_id()));
+                })
+            });
             
-            // // HRTF stuff
-            // fdn_output_buf.buffer.iter().zip(fdn_spatializers.iter_mut()).zip(fdn_curr_hrtf_idx.iter()).for_each(|((fdn_ob, sp), h_idx)| {
-            //     sp.process(fdn_ob, data, hrtf_storage.get_binaural_filter(*h_idx), hrtf_storage.get_binaural_filter(*h_idx));
-            // }); 
-            // // todo!()
+            // HRTF stuff
+            fdn_output_buf.buffer.iter().zip(fdn_spatializers.iter_mut()).zip(fdn_curr_hrtf_idx.iter()).for_each(|((fdn_ob, sp), h_idx)| {
+                sp.process(fdn_ob, data, hrtf_storage.get_binaural_filter(*h_idx), hrtf_storage.get_binaural_filter(*h_idx));
+            }); 
+            // // // todo!()
         },
         error_callback,
-        None,
+        Some(Duration::from_millis(5)), //None,
     )?;
 
     let stream_res = stream.play();
     match stream_res {
-        Ok(_) => {},
+        Ok(_) => { loop {thread::sleep(Duration::from_millis(500))}},
         Err(e) => {println!("Error opening stream: {:?}", e)},
     };
 
