@@ -37,6 +37,7 @@ pub fn start_server(port: u32) -> ! {
     // let mut ism_meta_data_vector = Arc::new(Mutex::new(vec![IsmMetaData::default(); 36]));
     start_audio_thread(rx, source_trees.clone(), room); //acoustic_scene.clone());
 
+    sleep(Duration::from_millis(2000));
     loop {
         // receive from adress
         let byte_string = osc_handle.try_recv();
@@ -44,8 +45,11 @@ pub fn start_server(port: u32) -> ! {
         // parse byte string to protobuf struct
         let scene_data = Scene_data::parse_from_bytes(&byte_string[..]).unwrap();
         update_scene(&scene_data, &mut source_trees);
-        tx.send(source_trees.clone()).unwrap();
-
+        let tx_res = tx.send(source_trees.clone()); //.unwrap();
+        match tx_res {
+            Ok(_) => {},
+            Err(e) => {println!("{:?}",e)},
+        }
         // experimental. forcing loop to be a bit chill
         sleep(Duration::from_millis(10));
     }
