@@ -26,57 +26,54 @@ where
 {
     //pub fn start_audio_thread(scene_data: Arc<Mutex<ISMAcousticScene>>) {
     thread::spawn(move || {
-        // let host = cpal::default_host();
-        // println!("Default Host: {:?}", host.id().name());
-        // let output_device = host.default_output_device().unwrap();
-        // println!("Default Output Devicce: {:?}", output_device.name());
-        // let output_config = output_device.default_output_config().unwrap();
-        // println!("Default Output Devicce: {:?}", output_config);
+        let host = cpal::default_host();
+        println!("Default Host: {:?}", host.id().name());
+        let output_device = host.default_output_device().unwrap();
+        println!("Default Output Devicce: {:?}", output_device.name());
+        let output_config = output_device.default_output_config().unwrap();
+        println!("Default Output Devicce: {:?}", output_config);
         
-        // let audio_thread_result = match output_config.sample_format() {
-            // cpal::SampleFormat::I8 => {
-            //     run::<i8, U>(&output_device, &output_config.into(), rx, source_trees, room)
-            // }
-            // cpal::SampleFormat::I16 => {
-            //     run::<i16, U>(&output_device, &output_config.into(), rx, source_trees, room)
-            // }
-            // cpal::SampleFormat::I32 => {
-            //     run::<i32, U>(&output_device, &output_config.into(), rx, source_trees, room)
-            // }
-            // cpal::SampleFormat::I64 => {
-            //     run::<i64, U>(&output_device, &output_config.into(), rx, source_trees, room)
-            // }
-            // cpal::SampleFormat::U8 => {
-            //     run::<u8, U>(&output_device, &output_config.into(), rx, source_trees, room)
-            // }
-            // cpal::SampleFormat::U16 => {
-            //     run::<u16, U>(&output_device, &output_config.into(), rx, source_trees, room)
-            // }
-            // cpal::SampleFormat::U32 => {
-            //     run::<u32, U>(&output_device, &output_config.into(), rx, source_trees, room)
-            // }
-            // cpal::SampleFormat::U64 => {
-            //     run::<u64, U>(&output_device, &output_config.into(), rx, source_trees, room)
-            // }
-       
-            // cpal::SampleFormat::F32 => {
-                // run::<f32, U>(output_device, output_config.into(), rx, source_trees, room)
-                run::<f32, U>( rx, source_trees, room);
-       
-        //     }
-        //     // cpal::SampleFormat::F64 => {
-        //     //     run::<f64, U>(&output_device, &output_config.into(), rx, source_trees, room)
-        //     // }
-        //     sample_format => panic!("Unsupported sample format '{sample_format}'"),
-        // };
+        let audio_thread_result = match output_config.sample_format() {
+            cpal::SampleFormat::I8 => {
+                run::<i8, U>(output_device, output_config.into(), rx, source_trees, room)
+            }
+            cpal::SampleFormat::I16 => {
+                run::<i16, U>(output_device,output_config.into(), rx, source_trees, room)
+            }
+            cpal::SampleFormat::I32 => {
+                run::<i32, U>(output_device,output_config.into(), rx, source_trees, room)
+            }
+            cpal::SampleFormat::I64 => {
+                run::<i64, U>(output_device,output_config.into(), rx, source_trees, room)
+            }
+            cpal::SampleFormat::U8 => {
+                run::<u8, U>(output_device, output_config.into(), rx, source_trees, room)
+            }
+            cpal::SampleFormat::U16 => {
+                run::<u16, U>(output_device, output_config.into(), rx, source_trees, room)
+            }
+            cpal::SampleFormat::U32 => {
+                run::<u32, U>(output_device, output_config.into(), rx, source_trees, room)
+            }
+            cpal::SampleFormat::U64 => {
+                run::<u64, U>(output_device, output_config.into(), rx, source_trees, room)
+            }
+            cpal::SampleFormat::F32 => {
+                run::<f32, U>(output_device, output_config.into(), rx, source_trees, room)    
+            }
+            cpal::SampleFormat::F64 => {
+                run::<f64, U>(output_device, output_config.into(), rx, source_trees, room)
+            }
+            sample_format => panic!("Unsupported sample format '{sample_format}'"),
+        };
 
-        // audio_thread_result
+        audio_thread_result
     });
 }
 
 fn run<T, U>(
-    // devcice: cpal::Device,
-    // config: cpal::StreamConfig,
+    devcice: cpal::Device,
+    config: cpal::StreamConfig,
     rx: Receiver<SourceTrees<U>>,
     mut source_trees: SourceTrees<U>,
     room: Room,
@@ -85,12 +82,15 @@ where
     T: SizedSample + FromSample<f32>,
 U: SourceType<Source> + Clone + Send + 'static,
 {
+
+    // Audio host & device configs
     let host = cpal::default_host();
-        println!("Default Host: {:?}", host.id().name());
-        let output_device = host.default_output_device().unwrap();
-        println!("Default Output Devicce: {:?}", output_device.name());
-        let output_config = output_device.default_output_config().unwrap();
-        println!("Default Output Devicce: {:?}", output_config);
+    let output_device = host.default_output_device().unwrap();
+    let output_config = output_device.default_output_config().unwrap();
+    println!("Default Host: {:?}", host.id().name());
+    println!("Default Output Devicce: {:?}", output_device.name());
+    println!("Default Output Devicce: {:?}", output_config);
+    
 
     let sample_rate: cpal::SampleRate = output_config.sample_rate();// as f32;
     let sample_rate = sample_rate.0 as f32;
@@ -98,10 +98,9 @@ U: SourceType<Source> + Clone + Send + 'static,
     let buffer_size = match output_config.buffer_size() {
         cpal::SupportedBufferSize::Range { min, max } => 128,
         cpal::SupportedBufferSize::Unknown => 128,
-        // cpal::BufferSize::Default => {panic!{"Default Buff.. why?"}},
-        // cpal::BufferSize::Fixed(x) => x as usize,
     };
 
+    // hardcoded 
     let stream_config = StreamConfig {
         channels: 2u16,
         sample_rate: cpal::SampleRate(48000u32),
@@ -230,18 +229,21 @@ U: SourceType<Source> + Clone + Send + 'static,
                     //      -set delaytimes for every delayline
                     //      -assign prev and curr hrtf filters
                     //      -calc mapping index to FDN input
-                    let src = src_arena.get_mut(*src_node_id).unwrap().get_mut();
-                    let delay_time = src.source.get_dist() / C;
-                    let delayline = buffer_arena.get_mut(*buffer_node_id).unwrap().get_mut(); 
+                    let src: &mut ISMLine<U> = src_arena.get_mut(*src_node_id).unwrap().get_mut();
+                    let delay_time: f32 = src.source.get_dist() / C;
+                    let delayline: &mut DelayLine = buffer_arena.get_mut(*buffer_node_id).unwrap().get_mut(); 
                     delayline.delayline.set_delay_time_ms(delay_time, sample_rate);
                     src.source.set_prev_hrtf_id(src.source.get_curr_hrtf_id());
                     src.source.set_curr_hrtf_id(hrtf_tree.find_closest_stereo_filter_angle(src.source.get_lst_src_transform().azimuth, src.source.get_lst_src_transform().elevation));
                     
-                    let fdn_delayline_idx = map_ism_to_fdn_channel(n, fdn_n_dls);
+                    let fdn_delayline_idx: usize = map_ism_to_fdn_channel(n, fdn_n_dls);
                     
                     // InnerLoop 2: 
                     // Iterate over samples (buffersize)
-                    ism_output_buffer.iter_mut().zip(fdn_input_buf.buffer[fdn_delayline_idx].iter_mut()).for_each(|(mut ism_line_output, fdn_input)| {
+                    ism_output_buffer.iter_mut()
+                                        .zip(fdn_input_buf.buffer[fdn_delayline_idx]
+                                        .iter_mut())
+                                        .for_each(|(ism_line_output, fdn_input)| {
                         //---------------------------------------
                         // read audio in per source
                         let sample_in = audio_file_managers[n].buffer.read();
@@ -258,8 +260,12 @@ U: SourceType<Source> + Clone + Send + 'static,
             // fdn.matrix_inputs.iter_mut().for_each(||)
             // fdn.process(fnd_input_buf, fdn_ou)
             for i in 0..buffer_size {
-                fdn.delaylines.iter_mut().zip(fdn.matrix_outputs.iter()).zip(fdn.matrix_inputs.iter_mut()).zip(fdn_output_buf.buffer.iter_mut()).zip(fdn_input_buf.buffer.iter())
-                .for_each(|((((fdn_in, mat_out),mat_in),fdn_out), fdn_input_buf)| {
+                fdn.delaylines.iter_mut()
+                                .zip(fdn.matrix_outputs.iter())
+                                .zip(fdn.matrix_inputs.iter_mut())
+                                .zip(fdn_output_buf.buffer.iter_mut())
+                                .zip(fdn_input_buf.buffer.iter())
+                                .for_each(|((((fdn_in, mat_out),mat_in),fdn_out), fdn_input_buf)| {
                     *mat_in = fdn_in.tick(fdn_input_buf[i]+mat_out);
                     fdn_out[i] = *mat_in;
                 });
@@ -279,7 +285,7 @@ U: SourceType<Source> + Clone + Send + 'static,
             // // // todo!()
         },
         error_callback,
-        Some(Duration::from_millis(5)), //None,
+        None,// Some(Duration::from_millis(5)), //None,
     )?;
 
     let stream_res = stream.play();

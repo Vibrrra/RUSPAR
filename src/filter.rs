@@ -3,7 +3,7 @@
 use std::{sync::Arc, collections::HashMap, fmt::{Debug, Formatter, self}, 
     io::{self, BufRead, BufReader}, fs::File, path::Path, hash::BuildHasherDefault};
 
-use byteorder::{ReadBytesExt, LittleEndian};
+use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use realfft::{num_complex::Complex, RealFftPlanner, RealToComplex, ComplexToReal};
 use kdtree;
 use nohash_hasher::NoHashHasher;
@@ -270,11 +270,11 @@ impl FilterStorage {
             azel[0] = angles_buf_reader.read_f32::<LittleEndian>().unwrap();
             azel[1] = angles_buf_reader.read_f32::<LittleEndian>().unwrap();
             for _ in 0..384 {
-                left_channel.push(filter_buf_reader.read_f32::<LittleEndian>().unwrap());
+                left_channel.push(filter_buf_reader.read_f32::<BigEndian>().unwrap());
             }
             let mut right_channel = Vec::new();
             for _ in 0..384 {
-                right_channel.push(filter_buf_reader.read_f32::<LittleEndian>().unwrap());
+                right_channel.push(filter_buf_reader.read_f32::<BigEndian>().unwrap());
             }
             let binaural_filter: BinauralFilter = BinauralFilter::from_vec(left_channel, right_channel, fft, BinauralFilterType::DirectSound, blocksize);
             
@@ -412,4 +412,27 @@ fn test_with_wav() {
     let binaural_filter = BinauralFilter::from_wav(path, &mut fft_manager, BinauralFilterType::DirectSound, buffer_size);
     println!("{:?}", &binaural_filter)
 }
+#[test]
+fn test_bytes_to_f32() {
+    let path  = Path::new("assets/hrtf_binary.dat");
+    let file = File::open(path).unwrap();
+    let reader = io::BufReader::new(file);
+    let mut f32reader: F32Reader<BufReader<File>> = F32Reader::new(reader);
+    let mut v = Vec::new();
+    while let Some(x) = f32reader.next() {
+        v.push(x);
+    }
+    println!("{:?}", &v[0..10]);
+}
 
+#[test]
+fn test_bytes_to_f32_old() {
+    let path  = Path::new("assets/hrtf_binary.dat");
+    let file = File::open(path).unwrap();
+    let mut reader = io::BufReader::new(file);
+    let mut v = Vec::new();
+    while let Ok(x) = reader.read_f32::<BigEndian>() {
+        v.push(x);
+    }
+    println!("{:?}", &v[0..10]);
+}
