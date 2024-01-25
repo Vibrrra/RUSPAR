@@ -148,7 +148,8 @@ impl BinauralFilter {
         BinauralFilter::from_time_domain(data_t, fft, filter_type, buffer_size)
     }
     pub fn default(filtertype: BinauralFilterType, fft: &mut FFTManager, buffer_size: usize) -> Self {
-                BinauralFilter::from_time_domain(vec![vec![0.0; 256]; 2], fft, filtertype, buffer_size)
+                // BinauralFilter::from_time_domain(vec![vec![0.0; 256]; 2], fft, filtertype, buffer_size) // <- why was this 256?
+                BinauralFilter::from_time_domain(vec![vec![0.0; buffer_size]; 2], fft, filtertype, buffer_size)
     }
 
     pub fn get_n_segments(&self) -> usize {
@@ -254,7 +255,7 @@ pub struct FilterTree {
 
 #[allow(unused)]
 impl FilterStorage {
-    pub fn new(filterpath: &str, anglepath: &str, fft: &mut FFTManager, blocksize: usize) -> (Self, FilterTree) {
+    pub fn new(filterpath: &Path, anglepath: &Path, fft: &mut FFTManager, blocksize: usize) -> (Self, FilterTree) {
         
         let mut angles: kdtree::KdTree<f32, usize, [f32; 2]> = kdtree::KdTree::new(2);
         let mut storage: HashMap<usize, BinauralFilter, BuildHasherDefault<NoHashHasher<usize>>> = HashMap::with_hasher(BuildHasherDefault::default());// HashMap::new();
@@ -263,6 +264,7 @@ impl FilterStorage {
         let mut filter_buf_reader: BufReader<File> = FilterStorage::read_f32_from_binary(filterpath);
         let mut angles_buf_reader: BufReader<File> = FilterStorage::read_f32_from_binary(anglepath);
             let mut id: usize = 1;
+        // 2558 angles.. -> this could be encoded in the hrtf-binary 
         for _ in 0..2558 {
             let mut left_channel: Vec<f32> = Vec::with_capacity(384);
             let mut right_channel: Vec<f32> = Vec::with_capacity(384);
@@ -301,19 +303,22 @@ impl FilterStorage {
         let file = File::open(filename)?;
         Ok(io::BufReader::new(file).lines())
     }  
-    fn read_f32_from_binary(filename: &str) -> BufReader<File> {
+    fn read_f32_from_binary(filename: &Path) -> BufReader<File> {
         let file = File::open(filename).unwrap();
         let reader = io::BufReader::new(file);
         reader 
     }
 
     pub fn get_binaural_filter(&self, id: usize) -> &BinauralFilter{
-               self.storage.get(&id).unwrap()
-         
+        let res = self.storage.get(&id); //.expect("Can't load filter with ID: {:?}", &id);         
+        match res {
+            Some(filter) => filter,
+            None => {panic!("Can't load filter with ID: {:?}", &id)},
+        }       
     }
 
     pub fn get_n_stereo_segments(&self, filter_type: BinauralFilterType) -> usize {    
-                self.storage.values().next().unwrap().get_n_segments()
+        self.storage.values().next().unwrap().get_n_segments()
     }
 
 }
@@ -435,4 +440,21 @@ fn test_bytes_to_f32_old() {
         v.push(x);
     }
     println!("{:?}", &v[0..10]);
+}
+
+#[test]
+fn test_hrtf_read() {
+    let fpath  = Path::new("assets/hrtf_binary.dat");
+    let apath  = Path::new("assets/hrtf_binary.dat");
+    // let file = File::open(path).unwrap();
+    // let mut reader = io::BufReader::new(file);
+    // let mut v = Vec::new();
+    let fft_len = 128;
+    let mut fftmanager = FFTManager::new(fft_len);
+    let (hrtf_storage, hrtf_tree) = FilterStorage::new(fpath, apath, &mut fftmanager, fft_len);
+    let hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(0.0, 90.0);
+    println!("hrtf_id: {hrtf_id}");
+    let hrtf = hrtf_storage.get_binaural_filter(hrtf_id);
+
+
 }

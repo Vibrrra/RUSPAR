@@ -163,6 +163,12 @@ impl SourceType<Source> for Source {
     fn get_src_lst_transform(&self) -> SphericalCoordinates {
         self.source_listener_orientation
     }
+    fn set_lst_src_transform(&mut self, spc: SphericalCoordinates) {
+        self.listener_source_orientation = spc;
+    }
+    fn set_src_lst_transform(&mut self, spc: SphericalCoordinates) {
+        self.source_listener_orientation = spc;
+    }
     fn create_ism(s: &Source, r: &Room, b: &Reflected, _may_have_spatializer: Option<Spatializer>) -> Source {   
     
         let position = calc_ism_position(&s.position, r, b);
@@ -200,6 +206,9 @@ impl SourceType<Source> for Source {
     fn set_remaining_dist(&mut self, dist: f32) {
         self.remaining_dist = dist;
     }
+    fn get_remaining_dist(& self) -> f32 {
+        self.remaining_dist
+    }
 }
 
 
@@ -212,6 +221,8 @@ pub trait SourceType<T> {
     fn set_dist(&mut self, dist: f32);
     fn get_src_lst_transform(&self) -> SphericalCoordinates;
     fn get_lst_src_transform(&self) -> SphericalCoordinates;
+    fn set_src_lst_transform(&mut self, spc: SphericalCoordinates);
+    fn set_lst_src_transform(&mut self, spc: SphericalCoordinates);
     fn create_ism(src: &T, room: &Room, b: &Reflected,may_have_spatializer: Option<Spatializer>) -> T; 
     fn create_default(may_have_spatializer: Option<Spatializer>) -> Self;
     fn get_spatializer(&self) -> Option<Spatializer>;
@@ -221,6 +232,7 @@ pub trait SourceType<T> {
     fn get_curr_hrtf_id(&self, ) -> usize;
     fn get_prev_hrtf_id(&self, ) -> usize;
     fn set_remaining_dist(&mut self, dist: f32);
+    fn get_remaining_dist(&self) -> f32;
 }
 
 #[derive(Clone)]
@@ -228,7 +240,7 @@ pub struct ISMLine<U>
 where U: SourceType<Source>
 {
     pub source: U,
-    pub spatializer_input_buffer: Vec<f32>, 
+    pub spatializer_input_buffer: Vec<f32>,
 }
 
 impl<U> ISMLine<U>  
@@ -237,7 +249,8 @@ where U: SourceType<Source>
     
     pub fn new(source: U, block_size: usize) -> Self {
         Self {
-            source, spatializer_input_buffer: vec![0.0; block_size],
+            source, 
+            spatializer_input_buffer: vec![0.0; block_size],
         }
     }
 
@@ -271,6 +284,12 @@ impl SourceType<ISMLine<Source>> for ISMLine<Source> {
     }
     fn get_src_lst_transform(&self) -> SphericalCoordinates {
         self.source.source_listener_orientation
+    }
+    fn set_lst_src_transform(&mut self, spc: SphericalCoordinates) {
+        self.source.listener_source_orientation = spc;
+    }
+    fn set_src_lst_transform(&mut self, spc: SphericalCoordinates) {
+        self.source.source_listener_orientation = spc;
     }
     fn create_ism(s: &ISMLine<Source>, r: &Room, b: &Reflected, may_have_spatializer: Option<Spatializer>) -> ISMLine<Source> {   
  
@@ -310,6 +329,9 @@ impl SourceType<ISMLine<Source>> for ISMLine<Source> {
     }
     fn set_remaining_dist(&mut self, dist: f32) {
         self.source.remaining_dist = dist;
+    }
+    fn get_remaining_dist(&self) -> f32 {
+        self.source.remaining_dist
     }
 }
 

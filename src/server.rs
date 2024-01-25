@@ -26,12 +26,6 @@ pub fn start_server(port: u32) -> ! {
 
     // config the engine hereo
     let mut source_trees: SourceTrees<crate::image_source_method::Source> = SourceTrees::create(max_n_sources, ism_order, None);
-
-    // let mut acoustic_scene: ISMAcousticScene = ISMAcousticScene::default();
-    // let acoustic_scene = Arc::new(Mutex::new(ISMAcousticScene::default()));
-    //let mut scene_data = Scene_data::default();
-    // maybe start audio module here
-    //
     let room =  Room::new(4.0, 3.0, 5.0);
     let (tx, rx) = mpsc::channel();
     // let mut ism_meta_data_vector = Arc::new(Mutex::new(vec![IsmMetaData::default(); 36]));
