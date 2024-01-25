@@ -198,7 +198,10 @@ U: SourceType<Source> + Clone + Send + 'static,
                     n_active_sources = data.roots.len();
                     for (((update_arena, update_vec), to_be_updated_arena),to_be_updated_vec) in (data.arenas.iter().zip(data.node_lists.iter()).zip(source_trees.arenas.iter_mut()).zip(source_trees.node_lists.iter())) {
                         for (update_node,to_be_updated_node) in update_vec.iter().zip(to_be_updated_vec.iter()) {
-                            to_be_updated_arena.get_mut(*to_be_updated_node).unwrap().get_mut().source = update_arena.get(*update_node).unwrap().get().clone();
+                            // to_be_updated_arena.get_mut(*to_be_updated_node).unwrap().get_mut().source = update_arena.get(*update_node).unwrap().get().clone();
+                            let mut tbua = to_be_updated_arena.get_mut(*to_be_updated_node).unwrap().get_mut().source; 
+                            let ua =  update_arena.get(*update_node).unwrap().get(); //.clone();
+                            tbua.set_dist(ua.get_dist());
                         }
                     }
                     // source_trees;
