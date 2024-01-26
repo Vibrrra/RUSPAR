@@ -46,6 +46,15 @@ impl FFTManager {
     pub fn transform_to_t_with_scratch(&mut self, input_data: &mut Vec<Complex<f32>>, output_data: &mut Vec<f32>) {
         self.complex2real.process_with_scratch(input_data, output_data, &mut self.c2r_scratch_buffer).unwrap();
     }
+    #[allow(unused)]
+    pub fn transform_to_f_with_extern_scratch(&mut self, input_data: &mut Vec<f32>, output_data: &mut Vec<Complex<f32>>, r2c_scratch_buffer: &mut Vec<Complex<f32>> ) {
+        self.real2complex.process_with_scratch(input_data, output_data, r2c_scratch_buffer).unwrap();
+    }
+
+    #[allow(unused)]
+    pub fn transform_to_t_with_extern_scratch(&mut self, input_data: &mut Vec<Complex<f32>>, output_data: &mut [f32], c2r_scratch_buffer: &mut [Complex<f32>]) {
+        self.complex2real.process_with_scratch(input_data, output_data, c2r_scratch_buffer).unwrap();
+    }
 
     #[allow(unused)]
     pub fn transform_to_f(&self, input_data: &mut Vec<f32>, output_data: &mut Vec<Complex<f32>>) {
