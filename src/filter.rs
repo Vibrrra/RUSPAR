@@ -263,7 +263,7 @@ impl FilterStorage {
         
         let mut filter_buf_reader: BufReader<File> = FilterStorage::read_f32_from_binary(filterpath);
         let mut angles_buf_reader: BufReader<File> = FilterStorage::read_f32_from_binary(anglepath);
-            let mut id: usize = 1;
+        let mut id: usize = 1;
         // 2558 angles.. -> this could be encoded in the hrtf-binary 
         for _ in 0..2558 {
             let mut left_channel: Vec<f32> = Vec::with_capacity(384);
@@ -282,6 +282,7 @@ impl FilterStorage {
             
             angles.add(azel, id);
             storage.insert(id, binaural_filter);
+            id+=1;
         }
         
         let available: bool = !storage.is_empty();
@@ -445,7 +446,7 @@ fn test_bytes_to_f32_old() {
 #[test]
 fn test_hrtf_read() {
     let fpath  = Path::new("assets/hrtf_binary.dat");
-    let apath  = Path::new("assets/hrtf_binary.dat");
+    let apath  = Path::new("assets/angles.dat");
     // let file = File::open(path).unwrap();
     // let mut reader = io::BufReader::new(file);
     // let mut v = Vec::new();

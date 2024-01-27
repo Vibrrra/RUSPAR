@@ -13,7 +13,7 @@ src = "src/main.rs"
 [dependencies]
 interoptopus = "0.14.18"
 interoptopus_backend_csharp = "0.14.18"
-cpal = "0.15.2"
+cpal = {path = "D:/Programming/Rust/cpal", features = ["asio"]}
 #windows-named-pipe = {path = "C:/Users/cschneiderwind/Documents/RUST/windows-named-pipe-master"}
 rosc = "0.10.1"
 prost = "0.12"

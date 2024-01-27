@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use nalgebra::{Vector3, Quaternion, UnitQuaternion};
 
 use crate::audioSceneHandlerData::{Scene_data, Transform};
@@ -44,7 +46,12 @@ fn cartesian_to_spherical(a: [f32; 3]) -> (f32, f32, f32) {
     let azimuth = a[0].atan2(a[2]);
     let elevation =  a[1].atan2( (a[2].powi(2) + a[0].powi(2)).sqrt());
 
-   (r, azimuth, elevation)
+   (r, rad2deg(azimuth).rem_euclid(360.0), rad2deg(elevation))
+}
+
+
+fn rad2deg(rad: f32) -> f32 {
+    rad * 360.0 / 2.0 / PI
 }
 
 fn get_quaternion(t: &Transform) -> Quaternion<f32> {

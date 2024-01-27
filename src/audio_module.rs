@@ -3,19 +3,11 @@ use cpal::{
 };
 use indextree::{Arena, NodeId};
 use nalgebra::Vector3;
-use std::{path::Path, sync::mpsc::Receiver, time::Duration};
+use std::{path::Path, sync::mpsc::Receiver, time::Duration, vec};
 use std::thread;
 
 use crate::{
-    convolver::Spatializer,
-    filter::{BinauralFilter, FFTManager, FilterStorage},
-    buffers::CircularDelayBuffer, 
-    image_source_method::{from_source_tree, is_per_model, ISMLine, Room, Source, SourceTrees, SourceType, N_IS_INDEX_RANGES}, 
-    readwav::AudioFileManager, 
-    config::{MAX_SOURCES, audio_file_list, C, IMAGE_SOURCE_METHOD_ORDER}, 
-    delaylines::DelayLine, 
-    fdn::{FeedbackDelayNetwork, calc_fdn_delayline_lengths, map_ism_to_fdn_channel, FDNInputBuffer, calc_hrtf_sphere_points},
-assets::{DL_S, A_FDN, B_FDN, A_FDN_TC, B_FDN_TC}
+    assets::{DL_S, A_FDN, B_FDN, A_FDN_TC, B_FDN_TC}, audio_devices::get_output_device, buffers::CircularDelayBuffer, config::{audio_file_list, BUFFER_SIZE, C, IMAGE_SOURCE_METHOD_ORDER, MAX_SOURCES, SAMPLE_RATE, TARGET_AUDIO_DEVICE}, convolver::Spatializer, delaylines::{self, DelayLine}, fdn::{FeedbackDelayNetwork, calc_fdn_delayline_lengths, map_ism_to_fdn_channel, FDNInputBuffer, calc_hrtf_sphere_points}, filter::{BinauralFilter, FFTManager, FilterStorage}, image_source_method::{from_source_tree, is_per_model, ISMLine, Room, Source, SourceTrees, SourceType, N_IS_INDEX_RANGES}, readwav::AudioFileManager
 };
 
 //pub fn start_audio_thread(acoustic_scene: Arc<Mutex<ISMAcousticScene>>) {
@@ -26,43 +18,65 @@ where
 {
     //pub fn start_audio_thread(scene_data: Arc<Mutex<ISMAcousticScene>>) {
     thread::spawn(move || {
-        let host = cpal::default_host();
-        println!("Default Host: {:?}", host.id().name());
-        let output_device = host.default_output_device().unwrap();
-        println!("Default Output Devicce: {:?}", output_device.name());
-        let output_config = output_device.default_output_config().unwrap();
-        println!("Default Output Devicce: {:?}", output_config);
+        // Audio host & device configs
+    let host = cpal::HostId::Asio;
+    
+    let target_device = get_output_device(TARGET_AUDIO_DEVICE);
+    let device = match target_device {
+        Some(device) => {device},
+        None => panic!{"Target Device not available!"},
+    };
+
+    let default_device_config = device.default_output_config().unwrap();
+    println!("Host: {:?}", host);
+    println!("Device: {:?}", device.name().unwrap());
+    let sample_rate: cpal::SampleRate = cpal::SampleRate(SAMPLE_RATE);//output_config.sample_rate();// as f32;
+    let channels = 2usize;
+    let sample_format = default_device_config.sample_format();
+     //output_config.channels() as usize; // as usize;
+    // let buffer_size: usize = match output_config.buffer_size() {
+    //     cpal::SupportedBufferSize::Range { min, max } => 256,
+    //     cpal::SupportedBufferSize::Unknown => 256,
+    // };
+
+    // hardcoded 
+    let stream_config: StreamConfig = StreamConfig {
+        channels: 2u16,
+        sample_rate: cpal::SampleRate(48000u32),
+        buffer_size: BufferSize::Fixed(BUFFER_SIZE),
+    };
+
         
-        let audio_thread_result = match output_config.sample_format() {
+        let audio_thread_result = match sample_format {
             cpal::SampleFormat::I8 => {
-                run::<i8, U>(output_device, output_config.into(), rx, source_trees, room)
+                run::<i8, U>(device, stream_config.into(), rx, source_trees, room)
             }
             cpal::SampleFormat::I16 => {
-                run::<i16, U>(output_device,output_config.into(), rx, source_trees, room)
+                run::<i16, U>(device,stream_config.into(), rx, source_trees, room)
             }
             cpal::SampleFormat::I32 => {
-                run::<i32, U>(output_device,output_config.into(), rx, source_trees, room)
+                run::<i32, U>(device,stream_config.into(), rx, source_trees, room)
             }
             cpal::SampleFormat::I64 => {
-                run::<i64, U>(output_device,output_config.into(), rx, source_trees, room)
+                run::<i64, U>(device,stream_config.into(), rx, source_trees, room)
             }
             cpal::SampleFormat::U8 => {
-                run::<u8, U>(output_device, output_config.into(), rx, source_trees, room)
+                run::<u8, U>(device, stream_config.into(), rx, source_trees, room)
             }
             cpal::SampleFormat::U16 => {
-                run::<u16, U>(output_device, output_config.into(), rx, source_trees, room)
+                run::<u16, U>(device, stream_config.into(), rx, source_trees, room)
             }
             cpal::SampleFormat::U32 => {
-                run::<u32, U>(output_device, output_config.into(), rx, source_trees, room)
+                run::<u32, U>(device, stream_config.into(), rx, source_trees, room)
             }
             cpal::SampleFormat::U64 => {
-                run::<u64, U>(output_device, output_config.into(), rx, source_trees, room)
+                run::<u64, U>(device, stream_config.into(), rx, source_trees, room)
             }
             cpal::SampleFormat::F32 => {
-                run::<f32, U>(output_device, output_config.into(), rx, source_trees, room)    
+                run::<f32, U>(device, stream_config.into(), rx, source_trees, room)    
             }
             cpal::SampleFormat::F64 => {
-                run::<f64, U>(output_device, output_config.into(), rx, source_trees, room)
+                run::<f64, U>(device, stream_config.into(), rx, source_trees, room)
             }
             sample_format => panic!("Unsupported sample format '{sample_format}'"),
         };
@@ -72,8 +86,8 @@ where
 }
 
 fn run<T, U>(
-    devcice: cpal::Device,
-    config: cpal::StreamConfig,
+    device: cpal::Device,
+    stream_config: cpal::StreamConfig,
     rx: Receiver<SourceTrees<U>>,
     mut source_trees: SourceTrees<U>,
     room: Room,
@@ -82,30 +96,8 @@ where
     T: SizedSample + FromSample<f32>,
 U: SourceType<Source> + Clone + Send + 'static,
 {
-
-    // Audio host & device configs
-    let host = cpal::default_host();
-    let output_device = host.default_output_device().unwrap();
-    let output_config = output_device.default_output_config().unwrap();
-    println!("Default Host: {:?}", host.id().name());
-    println!("Default Output Devicce: {:?}", output_device.name());
-    println!("Default Output Devicce: {:?}", output_config);
-    
-
-    let sample_rate: cpal::SampleRate = output_config.sample_rate();// as f32;
-    let sample_rate = sample_rate.0 as f32;
-    let channels = output_config.channels() as usize; // as usize;
-    let buffer_size: usize = match output_config.buffer_size() {
-        cpal::SupportedBufferSize::Range { min, max } => 256,
-        cpal::SupportedBufferSize::Unknown => 256,
-    };
-
-    // hardcoded 
-    let stream_config = StreamConfig {
-        channels: 2u16,
-        sample_rate: cpal::SampleRate(48000u32),
-        buffer_size: BufferSize::Fixed(buffer_size as u32),
-    };
+    let sample_rate = SAMPLE_RATE as f32;
+    let buffer_size = BUFFER_SIZE as usize;
     let error_callback = |err| eprintln!("Error occured on stream: {}", err);
 
     let filterpath: &Path  = Path::new("assets/hrtf_binary.dat");
@@ -123,7 +115,7 @@ U: SourceType<Source> + Clone + Send + 'static,
         FilterStorage::new(filterpath, anglepath, &mut fft_manager, buffer_size);
 
     // let mut spatializers: Vec<Spatializer> = vec![Spatializer::new(buffer_size, fft_manager, &hrtf_storage); MAX_SOURCES * is_per_model(ism_order, 6usize)];
-    let spatializer = Spatializer::new(buffer_size, fft_manager, &hrtf_storage); MAX_SOURCES * is_per_model(ism_order, 6usize);
+    let mut spatializer = Spatializer::new(buffer_size, fft_manager, &hrtf_storage); MAX_SOURCES * is_per_model(ism_order, 6usize);
     // set spatializer for sources in source tree
     source_trees.arenas.iter_mut().for_each(|arena| {
         arena.iter_mut().for_each(|src| {
@@ -174,7 +166,7 @@ U: SourceType<Source> + Clone + Send + 'static,
     // let mut fdn = FeedbackDelayNetwork::new(fdn_dl_lengths);
     // Init AudioFileManager
     let mut audio_file_managers: Vec<AudioFileManager> = Vec::new();
-    for i in 0 .. MAX_SOURCES {
+    for i in 0 ..1 {// MAX_SOURCES {
         audio_file_managers.push( AudioFileManager::new(audio_file_list[i].to_string(), buffer_size));
     }
 
@@ -346,23 +338,35 @@ U: SourceType<Source> + Clone + Send + 'static,
     //     // (ism_spatializer_output_buffer, fdn_spatializer_output_buffer)
     // };
 
+    let max_distance = 5.0;
+    let distance = 3.0;
+    let c = 343.0;
+    let buf_len = (max_distance / c * sample_rate).ceil() as usize;    
+    let mut dl = CircularDelayBuffer::new(buf_len);
+    let dt = distance / c;
+        dl.set_delay_time_ms(dt, sample_rate);
 
-    
+    let mut audio_out = vec![0.0f32; 2*  buffer_size];    
+    let mut prev_id = hrtf_tree.find_closest_stereo_filter_angle(90.0f32, 0.0f32);
+    let mut curr_id = hrtf_tree.find_closest_stereo_filter_angle(90.0f32, 0.0f32);
+    let volume = 0.5f32;
+    let ref_dist = 1.0f32;
+    // println!("{id}");
     // Create Stream
-    let stream: cpal::Stream = output_device.build_output_stream(
+    let stream:Result<cpal::Stream, cpal::BuildStreamError> = device.build_output_stream(
         &stream_config,
-        move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+        move |data: &mut [T], _: &cpal::OutputCallbackInfo| {
             
             // write_data(data, 2, &mut next_value);
             // audio_process(data, &mut renderer);
          
   
 
-            // // flush some buffers
-            fdn_input_buf.flush();
+            // // // flush some buffers
+            // fdn_input_buf.flush();
 
-            // write_data(data, channels, &mut next_value);
-            // Receive Updates
+            // // write_data(data, channels, &mut next_value);
+            // // Receive Updates
             match rx.try_recv() {
                 Ok(recv_data) => {
                     n_active_sources = recv_data.roots.len();
@@ -375,6 +379,8 @@ U: SourceType<Source> + Clone + Send + 'static,
                             tbua.set_pos(ua.get_pos());
                             tbua.set_prev_hrtf_id(tbua.get_curr_hrtf_id());
                             tbua.set_remaining_dist(ua.get_remaining_dist());
+                            tbua.set_lst_src_transform(ua.get_lst_src_transform());
+                            tbua.set_src_lst_transform(ua.get_src_lst_transform());
                         }
                     }
                     // source_trees;
@@ -425,7 +431,7 @@ U: SourceType<Source> + Clone + Send + 'static,
                         //---------------------------------------
                         // read audio in per source
                         // let sample_in = audio_file_managers[n].buffer.read();
-                        let sample_in = 0.0;
+                        let sample_in = 0.0;//audio_file_managers[0].buffer.read();
                         // process delaylines and store output buffer (-> spatializer)
                         // *ism_line_output = delayline.delayline.process(sample_in);           
                         *spatializer_input = delayline.delayline.process(sample_in);           
@@ -436,14 +442,30 @@ U: SourceType<Source> + Clone + Send + 'static,
                         
                     }) ;
                 })
-            });  
-            // let srcid = source_trees.node_lists[0][0]; 
-            // let src = &source_trees.arenas[0].get(srcid).unwrap().get().spatializer_input_buffer;
-            for (frames) in data.chunks_mut(2) {
-                let input =  audio_file_managers[0].buffer.read();
-                frames.iter_mut().for_each(|s| {
+            });
+
+            audio_out.iter_mut().for_each(|x| {*x = 0.0;});
+            let audio_in: Vec<f32> = (0..BUFFER_SIZE as usize).into_iter().map(|_| { 
+                audio_file_managers[0].buffer.read()
+                 
+            }).collect();
+            let root = source_trees.roots[0];
+            let src = source_trees.arenas[0].get(root).unwrap().get();
+            let ori: crate::image_source_method::SphericalCoordinates = src.source.get_lst_src_transform();
+            
+            let mut prev_ds_filter = hrtf_storage.get_binaural_filter(curr_id);
+    
+            curr_id = hrtf_tree.find_closest_stereo_filter_angle(ori.azimuth, ori.elevation);
+            let mut active_ds_filter = hrtf_storage.get_binaural_filter(hrtf_tree.find_closest_stereo_filter_angle(ori.azimuth, ori.elevation));
+            
+            spatializer.process(&audio_in, &mut audio_out, active_ds_filter, prev_ds_filter);
+            
+
+            for (frames, input) in data.chunks_mut(2).zip(audio_out.chunks(2)) {
+                // let input =  audio_file_managers[0].buffer.read();
+                frames.iter_mut().zip(input.iter()).for_each(|(o,i)| {
                     
-                    *s = input;
+                    *o = T::from_sample(*i*volume*ref_dist/src.source.get_dist());
                 })
             }
             // // FDN
@@ -493,10 +515,14 @@ U: SourceType<Source> + Clone + Send + 'static,
         },
         error_callback,
         None,// Some(Duration::from_millis(5)), //None,
-    )?;
+    );
+    let stream_res: cpal::Stream = match stream {
+        Ok(stream) => stream,
+        Err(e) => panic!("ERROR: {e}"),
+    };
 
-    let stream_res = stream.play();
-    match stream_res {
+    let stream_play_res: Result<(), cpal::PlayStreamError> = stream_res.play();
+    match stream_play_res {
         Ok(_) => { loop {thread::sleep(Duration::from_secs(500))}},
         Err(e) => {println!("Error opening stream: {:?}", e)},
     };
