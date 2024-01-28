@@ -12,3 +12,27 @@ pub const MAX_SOURCES: usize = 10;
 pub static audio_file_list: [&str; MAX_SOURCES] = [r"E:\RustProjects\Assets\_Stimuli__speech__HarvardMale.wav",
                                           "1","2","3","4","5","6","7","8","9"]; 
 
+// files for debugging release build dependency assets
+pub static rel_angles: &str = r"E:\RustProjects\RUSPAR\target\release\assets\angles.dat";
+pub static rel_hrtfs: &str = r"E:\RustProjects\RUSPAR\target\release\assets\hrtf_binary.dat";
+
+
+
+
+#[cfg(test)]
+#[test]
+
+fn read_angles() {
+    use std::{iter::Filter, path::Path};
+
+    use crate::filter::{FFTManager, FilterStorage};
+
+    let mut fftm = FFTManager::new(256);
+    let (fst,ftt) = FilterStorage::new(Path::new(rel_hrtfs), Path::new(rel_angles),  &mut fftm, 128);
+
+    let az: f32 = 90.0;
+    let el: f32 = 90.0;
+
+    let id = ftt.find_closest_stereo_filter_angle(az,el);
+    println!("{id}");
+}

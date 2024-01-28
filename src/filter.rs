@@ -269,8 +269,8 @@ impl FilterStorage {
             let mut left_channel: Vec<f32> = Vec::with_capacity(384);
             let mut right_channel: Vec<f32> = Vec::with_capacity(384);
             let mut azel: [f32; 2] = [0.0f32, 0.0f32]; 
-            azel[0] = angles_buf_reader.read_f32::<LittleEndian>().unwrap();
-            azel[1] = angles_buf_reader.read_f32::<LittleEndian>().unwrap();
+            azel[0] = angles_buf_reader.read_f32::<BigEndian>().unwrap();
+            azel[1] = angles_buf_reader.read_f32::<BigEndian>().unwrap();
             for _ in 0..384 {
                 left_channel.push(filter_buf_reader.read_f32::<BigEndian>().unwrap());
             }

@@ -397,6 +397,11 @@ U: SourceType<Source> + Clone + Send + 'static,
                     .enumerate()
                     .zip(buffer_trees.buffer_arenas.iter_mut().zip(buffer_trees.node_lists.iter()))
                     .for_each(|((n,(src_arena, src_node_list)), (buffer_arena, buffer_node_list))| {
+                
+                // read audio for every tree
+                audio_out.iter_mut().for_each(|x| {*x = 0.0;});
+                let audio_in: Vec<f32> = (0..BUFFER_SIZE as usize).into_iter().map(|_| { 
+                audio_file_managers[0].buffer.read()}).collect();
 
                 // InnerLoop 1:
                 // for every source- and buffer-tree iterate over the individual (image) sources, hrtfs, buffers, delaylines.
@@ -431,10 +436,10 @@ U: SourceType<Source> + Clone + Send + 'static,
                         //---------------------------------------
                         // read audio in per source
                         // let sample_in = audio_file_managers[n].buffer.read();
-                        let sample_in = 0.0;//audio_file_managers[0].buffer.read();
+                        // let sample_in = 0.0; audio_file_managers[0].buffer.read();
                         // process delaylines and store output buffer (-> spatializer)
                         // *ism_line_output = delayline.delayline.process(sample_in);           
-                        *spatializer_input = delayline.delayline.process(sample_in);           
+                        *spatializer_input = delayline.delayline.process(audio_file_managers[0].buffer.read());           
                         // *fdn_input += *ism_line_output;
                         *fdn_input += *spatializer_input;
                         // map to FDN input channels
@@ -444,11 +449,10 @@ U: SourceType<Source> + Clone + Send + 'static,
                 })
             });
 
-            audio_out.iter_mut().for_each(|x| {*x = 0.0;});
-            let audio_in: Vec<f32> = (0..BUFFER_SIZE as usize).into_iter().map(|_| { 
-                audio_file_managers[0].buffer.read()
-                 
-            }).collect();
+            // audio_out.iter_mut().for_each(|x| {*x = 0.0;});
+            // let audio_in: Vec<f32> = (0..BUFFER_SIZE as usize).into_iter().map(|_| { 
+            //     audio_file_managers[0].buffer.read()
+            // }).collect();
             let root = source_trees.roots[0];
             let src = source_trees.arenas[0].get(root).unwrap().get();
             let ori: crate::image_source_method::SphericalCoordinates = src.source.get_lst_src_transform();
@@ -458,7 +462,7 @@ U: SourceType<Source> + Clone + Send + 'static,
             curr_id = hrtf_tree.find_closest_stereo_filter_angle(ori.azimuth, ori.elevation);
             let mut active_ds_filter = hrtf_storage.get_binaural_filter(hrtf_tree.find_closest_stereo_filter_angle(ori.azimuth, ori.elevation));
             
-            spatializer.process(&audio_in, &mut audio_out, active_ds_filter, prev_ds_filter);
+            spatializer.process(&src.spatializer_input_buffer, &mut audio_out, active_ds_filter, prev_ds_filter);
             
 
             for (frames, input) in data.chunks_mut(2).zip(audio_out.chunks(2)) {
@@ -526,7 +530,7 @@ U: SourceType<Source> + Clone + Send + 'static,
         Ok(_) => { loop {thread::sleep(Duration::from_secs(500))}},
         Err(e) => {println!("Error opening stream: {:?}", e)},
     };
-
+    println!("Stream terminated!");
     Ok(())
 }
 
