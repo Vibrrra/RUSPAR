@@ -17,6 +17,7 @@ pub mod image_source_method;
 pub mod config;
 pub mod assets;
 pub mod audio_devices;
+pub mod ism_test_structure;
 use interoptopus::ffi_function;
 
 // use protobuf::ext;

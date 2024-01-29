@@ -10,6 +10,8 @@ use indextree::Arena;
 use strum_macros::EnumIter;
 
 use crate::convolver::Spatializer;
+use crate::scene_parser::calc_lst_src_orientation;
+use crate::scene_parser::calc_src_lst_orientation;
 
 // index ranges for image sources vectors
 pub const N_IS_INDEX_RANGES: [(usize, usize); 4] = [
@@ -37,7 +39,7 @@ pub enum Reflected {
 // impl enum to be iteratable  
 // src: https://stackoverflow.com/questions/21371534/in-rust-is-there-a-way-to-iterate-through-the-values-of-an-enum
 impl Reflected {
-    const VALUES: [Self; 6] = [Self::X0, Self::X1, Self::Y0, Self::Y1, Self::Z0, Self::Z1];
+    pub const VALUES: [Self; 6] = [Self::X0, Self::X1, Self::Y0, Self::Y1, Self::Z0, Self::Z1];
 }
 
 #[allow(dead_code)]
@@ -81,6 +83,7 @@ pub struct Source {
     pub listener_source_orientation: SphericalCoordinates,
     // pub buffer: CircularDelayBuffer,
     pub dist: f32,
+    pub dist_rem: f32,
     pub remaining_dist: f32,
     pub reflector: Reflected,
     pub spatializer: Option<Spatializer>,
@@ -121,6 +124,7 @@ impl Source {
                 // (sample_rate * room.diagonal() / speed_of_sound).ceil() as usize,
             // ),
             dist,
+            dist_rem: 0.0,
             remaining_dist: 0.0,
             reflector: refl,
             source_listener_orientation,
@@ -212,7 +216,7 @@ impl SourceType<Source> for Source {
 }
 
 
-pub trait SourceType<T> {
+pub trait SourceType<T: Clone> {
     fn get_pos(&self) -> Vector3<f32>;
     fn set_pos(&mut self, position: Vector3<f32>);
     fn get_orientation(&self) -> Quaternion<f32>;
@@ -404,11 +408,15 @@ where U: SourceType<Source> + Clone
 
 pub fn create_source_tree<T>(sources: Vec<T>, room: &Room, ism_order: usize, may_have_spatializer: Option<Spatializer>) -> SourceTrees<T> 
 where T: Clone + SourceType<T>
-{//(Arena<Source>, Vec<NodeId>) {
-    
+{
+    // Init data structures
     let mut node_lists = Vec::new();
     let mut source_tree_vec = Vec::new(); 
     let mut roots = Vec::new(); 
+    
+    // Iterate over every sound source in the scene
+    // - Create an arena for every node
+    // - Create a list holding the ids of all roots ("non-image sources")
     for n in 0 .. sources.len() {
         let mut arena = indextree::Arena::new();
         let mut node_list = Vec::new();
@@ -416,18 +424,19 @@ where T: Clone + SourceType<T>
         node_list.push(new_node); 
         roots.push(new_node);
         
+        // Create image sources
+        // - Iterate over all ism_order 
         for order in 0..ism_order {
-            // for i in N_IS_INDEX_RANGES[order].0+n*(offset+1) .. N_IS_INDEX_RANGES[order].1+n*(offset+1) {
+            // - Iterate over the flattened mapped range of respective number of image sources
             for i in N_IS_INDEX_RANGES[order].0 .. N_IS_INDEX_RANGES[order].1 {
                 for boundary in Reflected::VALUES {
                     
-                    // let current_node = arena.get(node_list[i]).unwrap();
                     let current_source = arena.get(node_list[i]).unwrap().get();
                     
                     if *current_source.get_reflector() != boundary  {
                         let new_node = arena.new_node(T::create_ism(current_source, room, &boundary, current_source.get_spatializer().clone()));
                         node_list[i].append(new_node, &mut arena);
-                        node_list.push(new_node);                        
+                        node_list.push(new_node);                       
                     }
                 }
             }
@@ -440,16 +449,19 @@ where T: Clone + SourceType<T>
     //(arena, node_list)
 }
 
-pub fn update_source_tree<T, U>(source_trees: &mut SourceTrees<T>, sources: Vec<Source>, room: &Room, listener: &Listener) 
-where T: SourceType<U> + Clone
+pub fn update_source_tree(source_trees: &mut SourceTrees<Source>, sources: Vec<Source>, room: &Room, listener: &Listener) 
 {
-    // let offset = is_per_model(ism_order, 6);
-
     assert!(source_trees.node_lists.len() == sources.len());
     assert!(source_trees.node_lists[0].len() == source_trees.arenas[0].count());
+
+    // Iterate over all sound sources in the scene
     for (n, new_source) in sources.iter().enumerate() {
+        
+        // Iterate over every all (image) souces of the respective tree 
         for i in 0 .. source_trees.arenas[n].count() {
-            let parent_node = source_trees.arenas[n].get(source_trees.node_lists[n][i]).unwrap().parent();
+
+            // Parent node extraction
+            let parent_node: Option<NodeId> = source_trees.arenas[n].get(source_trees.node_lists[n][i]).unwrap().parent();
             match parent_node {
                 Some(pn) => {
                     let parent_dist = source_trees.arenas[n].get(pn).unwrap().get().get_dist();
@@ -457,7 +469,7 @@ where T: SourceType<U> + Clone
                          source_trees.arenas[n].get(pn).unwrap().get().get_pos();
                     // let parent_position: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = 
                     //     parent_src.get_pos();
-                    let current_node: &mut T = source_trees.arenas[n].get_mut(source_trees.node_lists[n][i]).unwrap().get_mut();
+                    let current_node = source_trees.arenas[n].get_mut(source_trees.node_lists[n][i]).unwrap().get_mut();
                     *current_node.get_pos() = *calc_ism_position(&parent_position, room, &current_node.get_reflector());
                     current_node.set_dist(calc_distance(&current_node.get_pos(), &listener.get_pos()));
                     current_node.set_remaining_dist( current_node.get_dist()-parent_dist);
@@ -472,8 +484,7 @@ where T: SourceType<U> + Clone
     }
 }
 
-pub fn update_source_tree_from_roots<T, U>(source_trees: &mut SourceTrees<T>, room: &Room) 
-where T: SourceType<U> + Clone
+pub fn update_source_tree_from_roots(source_trees: &mut SourceTrees<Source>, room: &Room, listener: &Listener) 
 {
 
     for n in 0 .. source_trees.node_lists.len() {
@@ -482,11 +493,17 @@ where T: SourceType<U> + Clone
             let parent_node = source_trees.arenas[n].get(source_trees.node_lists[n][i]).unwrap().parent();
             match parent_node {
                 Some(pn) => {
+                    let parent_dist = source_trees.arenas[n].get(pn).unwrap().get().get_dist();
                     let parent_position: nalgebra::Matrix<f32, nalgebra::Const<3>, nalgebra::Const<1>, nalgebra::ArrayStorage<f32, 3, 1>> = 
                         source_trees.arenas[n].get(pn).unwrap().get().get_pos();
-                    let current_node: &mut T = source_trees.arenas[n].get_mut(source_trees.node_lists[n][i]).unwrap().get_mut();
+                    let current_node = source_trees.arenas[n].get_mut(source_trees.node_lists[n][i]).unwrap().get_mut();
                     // *current_node.position = *calc_ism_position(&parent_position, room, &current_node.reflector);
                     current_node.set_pos(calc_ism_position(&parent_position, room, &current_node.get_reflector()));
+                    current_node.set_dist(calc_distance(&current_node.get_pos(), &listener.get_pos()));
+                    current_node.set_remaining_dist( current_node.get_dist()-parent_dist);
+                    let lst_src_orientation = calc_lst_src_orientation(&listener, current_node.get_pos());
+                    let src_lst_orientation = calc_src_lst_orientation(current_node, current_node.get_pos());
+                    current_node.set_lst_src_transform(lst_src_orientation);
                 },
                 None => {
 
@@ -502,7 +519,7 @@ where T: SourceType<U> + Clone
 // This function creates an image source from reflecting a source
 // on an respective room boundary
 // fn create_ism(s: &Source, r: &Room, b: &Reflected) -> Source {   
-fn create_ism(s: &Source, r: &Room, b: &Reflected) -> Source {   
+pub fn create_ism(s: &Source, r: &Room, b: &Reflected) -> Source {   
     
     let position = calc_ism_position(&s.position, r, b);
  
@@ -517,7 +534,7 @@ fn create_ism(s: &Source, r: &Room, b: &Reflected) -> Source {
 }
 // This function creates an image source from reflecting a source
 // on an respective room boundary
-fn calc_ism_position(source_position: &Vector3<f32>, r: &Room, b: &Reflected) -> Vector3<f32> {   
+pub fn calc_ism_position(source_position: &Vector3<f32>, r: &Room, b: &Reflected) -> Vector3<f32> {   
     
     let mut position = *source_position;
     match b {

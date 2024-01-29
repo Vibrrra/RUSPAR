@@ -1,7 +1,7 @@
 use std::{sync::mpsc, thread::sleep, time::Duration};
 
 use crate::{
-    audioSceneHandlerData::Scene_data, audio_module::start_audio_thread, config::{IMAGE_SOURCE_METHOD_ORDER, MAX_SOURCES}, image_source_method::{SourceTrees, Room}, osc::OSCHandler, scene_parser::update_scene
+    audioSceneHandlerData::Scene_data, audio_module::start_audio_thread, config::{IMAGE_SOURCE_METHOD_ORDER, MAX_SOURCES}, image_source_method::{SourceTrees, Room}, ism_test_structure::IMS, osc::OSCHandler, scene_parser::update_scene
 };
 use protobuf::Message;
 
@@ -24,11 +24,14 @@ pub fn start_server(port: u32) -> ! {
     let mut osc_handle = OSCHandler::new(&ip_addr);
 
     // config the engine hereo
-    let mut source_trees: SourceTrees<crate::image_source_method::Source> = SourceTrees::create(MAX_SOURCES, IMAGE_SOURCE_METHOD_ORDER, None);
+    // old
+    // let mut source_trees: SourceTrees<crate::image_source_method::Source> = SourceTrees::create(MAX_SOURCES, IMAGE_SOURCE_METHOD_ORDER, None);
+    //new
+    let mut isms = IMS::create_raw(MAX_SOURCES);
     let room =  Room::new(4.0, 3.0, 5.0);
     let (tx, rx) = mpsc::channel();
     // let mut ism_meta_data_vector = Arc::new(Mutex::new(vec![IsmMetaData::default(); 36]));
-    start_audio_thread(rx, source_trees.clone(), room); //acoustic_scene.clone());
+    start_audio_thread(rx, isms.clone(), room); //acoustic_scene.clone());
 
     sleep(Duration::from_millis(2000));
     loop {
@@ -37,10 +40,18 @@ pub fn start_server(port: u32) -> ! {
 
         // parse byte string to protobuf struct
         let scene_data = Scene_data::parse_from_bytes(&byte_string[..]).unwrap();
-        update_scene(&scene_data, &mut source_trees);
-        let src = source_trees.arenas[0].get(source_trees.roots[0]).unwrap().get();
+        
+        // old
+        // update_scene(&scene_data, &mut source_trees);
+        // let src = source_trees.arenas[0].get(source_trees.roots[0]).unwrap().get();
+        //let tx_res = tx.send(source_trees.clone()); //.unwrap();
+        
+        // new
+        isms.update_from_scene(scene_data);
+        let tx_res = tx.send(isms.clone());
+        let src = &isms.sources[0][0];
         println!("Az: {}, El: {}", src.listener_source_orientation.azimuth, src.listener_source_orientation.elevation);
-        let tx_res = tx.send(source_trees.clone()); //.unwrap();
+        
         match tx_res {
             Ok(_) => {},
             Err(e) => {println!("{:?}",e)},
