@@ -453,7 +453,7 @@ fn test_hrtf_read() {
     let fft_len = 128;
     let mut fftmanager = FFTManager::new(fft_len);
     let (hrtf_storage, hrtf_tree) = FilterStorage::new(fpath, apath, &mut fftmanager, fft_len);
-    let hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(0.0, 90.0);
+    let hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(315.0, 18.0);
     println!("hrtf_id: {hrtf_id}");
     let hrtf = hrtf_storage.get_binaural_filter(hrtf_id);
 

@@ -62,6 +62,6 @@ pub fn start_server(port: u32, BUFFER_SIZE:usize ) -> ! {
             Err(e) => {println!("{:?}",e)},
         }
         // experimental. forcing loop to be a bit chill
-        sleep(Duration::from_millis(10));
+        sleep(Duration::from_millis(60));
     }
 }
