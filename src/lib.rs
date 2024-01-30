@@ -18,6 +18,7 @@ pub mod config;
 pub mod assets;
 pub mod audio_devices;
 pub mod ism_test_structure;
+use config::BUFFER_SIZE_CONF;
 use interoptopus::ffi_function;
 
 // use protobuf::ext;
@@ -34,5 +35,6 @@ pub extern "C" fn add_one(x: u32) -> u32 {
 pub extern "C" fn StartAudioSceneHandler(port: u32) {
     // create channel btw. audio thread and scene_handler thread
     // start scene handler thread
-    let _server: () = start_server(port);
+    
+    let _server: () = start_server(port, BUFFER_SIZE_CONF as usize);
 }

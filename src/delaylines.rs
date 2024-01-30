@@ -28,6 +28,11 @@ impl DelayLine {
         out
     }
 
+    pub fn process_block(&mut self, audio_in: &[f32], audio_out: &mut [f32]) {
+        audio_in.iter().zip(audio_out.iter_mut()).for_each(|(i,o)| {
+            *o = self.process(*i);
+        })
+    }
     // https://github.com/chrisyeoward/ScatteringDelayNetwork/blob/master/Source/Reverb/Delay.cpp#46
     // https://github.com/chrisyeoward/ScatteringDelayNetwork/blob/master/Source/Reverb/Filter.h
     pub fn set_air_absoprtion(&mut self, distance: f32) {
@@ -38,6 +43,7 @@ impl DelayLine {
             b0: 1.0 - self.air_absorption_coeff, 
             b1: 0.0, 
             b2: 0.0 };
+            self.air_absorption_filter.update_coefficients(coeffs);
     }
 
 }

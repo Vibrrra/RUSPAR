@@ -1,4 +1,4 @@
-use std::{f32::consts::PI, vec};
+use std::{cell::RefCell, f32::consts::PI, vec};
 
 use nalgebra::{Quaternion, UnitQuaternion, Vector2, Vector3};
 
@@ -187,10 +187,12 @@ impl IMS {
 
 
             // update non-image sources
-            sources[0].set_pos(Vector3::new(scene_src.position.x, scene_src.position.y, scene_src.position.z));
-            update_lst_src_orientation(&listener_transform, scene_src, &mut sources[0]);
-            update_src_lst_orientation( scene_src, &listener_transform,&mut sources[0]);
-            
+            let src = &mut sources[0];
+            src.set_pos(Vector3::new(scene_src.position.x, scene_src.position.y, scene_src.position.z));
+            update_lst_src_orientation(&listener_transform, scene_src, src);
+            update_src_lst_orientation( scene_src, &listener_transform,src);
+            src.set_dist(calc_distance(&src.get_pos(),&listener.get_pos()));
+            src.set_remaining_dist(src.get_dist());
             for parent_idx in 0 .. ISM_INDEX_RANGES.len() {
                 
                 let idx_start: usize = ISM_INDEX_RANGES[parent_idx].1;
@@ -204,7 +206,8 @@ impl IMS {
                 for i in idx_start .. idx_stop {
                     // assert!(sources.len() <= idx_stop);
                     let src = &mut sources[i];
-                    
+                    update_lst_src_orientation(&listener_transform,  scene_src, src);
+                    update_src_lst_orientation( scene_src, &listener_transform,src);
                     src.set_pos(calc_ism_position(parent_pos, &room, &src.get_reflector()));
                     src.set_dist(calc_distance(&src.get_pos(),&listener.get_pos()));
                     src.set_remaining_dist(src.get_dist()-parent_dist);

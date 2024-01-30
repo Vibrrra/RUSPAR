@@ -7,10 +7,10 @@ use std::{cell::RefCell, os::windows::process, path::Path, sync::mpsc::Receiver,
 use std::thread;
 
 use crate::{
-    assets::{DL_S, A_FDN, B_FDN, A_FDN_TC, B_FDN_TC}, audio_devices::get_output_device, buffers::CircularDelayBuffer, config::{audio_file_list, BUFFER_SIZE, C, IMAGE_SOURCE_METHOD_ORDER, MAX_SOURCES, SAMPLE_RATE, TARGET_AUDIO_DEVICE}, convolver::Spatializer, delaylines::{self, DelayLine}, fdn::{FeedbackDelayNetwork, calc_fdn_delayline_lengths, map_ism_to_fdn_channel, FDNInputBuffer, calc_hrtf_sphere_points}, filter::{BinauralFilter, FFTManager, FilterStorage}, image_source_method::{from_source_tree, is_per_model, ISMLine, Room, Source, SourceTrees, SourceType, N_IS_INDEX_RANGES}, ism_test_structure::{ISMDelayLines, IMS, ISM_INDEX_RANGES}, readwav::AudioFileManager
+    assets::{DL_S, A_FDN, B_FDN, A_FDN_TC, B_FDN_TC}, audio_devices::get_output_device, buffers::CircularDelayBuffer, config::{audio_file_list,  C, IMAGE_SOURCE_METHOD_ORDER, MAX_SOURCES, SAMPLE_RATE, TARGET_AUDIO_DEVICE}, convolver::Spatializer, delaylines::{self, DelayLine}, fdn::{FeedbackDelayNetwork, calc_fdn_delayline_lengths, map_ism_to_fdn_channel, FDNInputBuffer, calc_hrtf_sphere_points}, filter::{BinauralFilter, FFTManager, FilterStorage}, image_source_method::{from_source_tree, is_per_model, ISMLine, Room, Source, SourceTrees, SourceType, N_IS_INDEX_RANGES}, ism_test_structure::{ISMDelayLines, IMS, ISM_INDEX_RANGES}, readwav::AudioFileManager
 };
 
-pub fn start_audio_thread(rx: Receiver<IMS>, mut sources: IMS, room: Room) {
+pub fn start_audio_thread(rx: Receiver<IMS>, mut sources: IMS, room: Room, BUFFER_SIZE: usize) {
     //pub fn start_audio_thread(scene_data: Arc<Mutex<ISMAcousticScene>>) {
     thread::spawn(move || {
 
@@ -32,40 +32,40 @@ pub fn start_audio_thread(rx: Receiver<IMS>, mut sources: IMS, room: Room) {
     let stream_config: StreamConfig = StreamConfig {
         channels: 2u16,
         sample_rate: cpal::SampleRate(48000u32),
-        buffer_size: BufferSize::Fixed(BUFFER_SIZE),
+        buffer_size: BufferSize::Fixed(BUFFER_SIZE as u32),
     };
 
         
     let audio_thread_result = match sample_format {
         cpal::SampleFormat::I8 => {
-            run::<i8>(device, stream_config.into(),  rx, sources, room)
+            run::<i8>(device, stream_config.into(),  rx, sources, room,BUFFER_SIZE)
         }
         cpal::SampleFormat::I16 => {
-            run::<i16>(device,stream_config.into(),  rx, sources, room)
+            run::<i16>(device,stream_config.into(),  rx, sources, room,BUFFER_SIZE)
         }
         cpal::SampleFormat::I32 => {
-            run::<i32>(device,stream_config.into(),  rx, sources, room)
+            run::<i32>(device,stream_config.into(),  rx, sources, room,BUFFER_SIZE)
         }
         cpal::SampleFormat::I64 => {
-            run::<i64>(device,stream_config.into(),  rx, sources, room)
+            run::<i64>(device,stream_config.into(),  rx, sources, room,BUFFER_SIZE)
         }
         cpal::SampleFormat::U8 => {
-            run::<u8>(device, stream_config.into(),  rx, sources, room)
+            run::<u8>(device, stream_config.into(),  rx, sources, room,BUFFER_SIZE)
         }
         cpal::SampleFormat::U16 => {
-            run::<u16>(device, stream_config.into(), rx, sources, room)
+            run::<u16>(device, stream_config.into(), rx, sources, room,BUFFER_SIZE)
         }
         cpal::SampleFormat::U32 => {
-            run::<u32>(device, stream_config.into(), rx, sources, room)
+            run::<u32>(device, stream_config.into(), rx, sources, room,BUFFER_SIZE)
         }
         cpal::SampleFormat::U64 => {
-            run::<u64>(device, stream_config.into(), rx, sources, room)
+            run::<u64>(device, stream_config.into(), rx, sources, room,BUFFER_SIZE)
         }
         cpal::SampleFormat::F32 => {
-            run::<f32>(device, stream_config.into(), rx, sources, room)    
+            run::<f32>(device, stream_config.into(), rx, sources, room,BUFFER_SIZE)    
         }
         cpal::SampleFormat::F64 => {
-            run::<f64>(device, stream_config.into(), rx, sources, room)
+            run::<f64>(device, stream_config.into(), rx, sources, room,BUFFER_SIZE)
         }
         sample_format => panic!("Unsupported sample format '{sample_format}'"),
     };
@@ -82,6 +82,7 @@ fn run<T>(
     rx: Receiver<IMS>,
     mut source_trees: IMS,
     room: Room,
+    BUFFER_SIZE: usize,
 ) -> Result<(), anyhow::Error>
 where
     T: SizedSample + FromSample<f32>,
@@ -125,10 +126,11 @@ where
 
     // Init AudioFileManager
     let mut audio_file_managers: Vec<AudioFileManager> = Vec::new();
-    for i in 0 .. MAX_SOURCES {
+    for i in 0 .. 1{// MAX_SOURCES {
         audio_file_managers.push( AudioFileManager::new(audio_file_list[i].to_string(), buffer_size));
     }
-
+    let mut test_audio_manager = audio_file_managers[0].buffer.clone();
+    let mut output_buffers: Vec<Vec<f32>> = vec![vec![0.0f32; buffer_size]; 37];
     // INIT . This loop blocks the current fucntion for 5 secs and waits for 
     // a first update from the server to initialize all variables with sane data
     loop {
@@ -162,9 +164,11 @@ where
         move |data: &mut [T], _: &cpal::OutputCallbackInfo| {
             
             // MAYBE Flushing some buffers here ... 
+            temp_buffer.iter_mut().for_each(|x|  {*x = 0.0});
 
             match rx.try_recv() {
                 Ok(data) => {
+                    
                     sources.sources.iter_mut().zip(data.sources.iter()).for_each(|(rev, src)| {
                         rev.iter_mut().zip(src.iter()).for_each(|(r, s)|{
                             // set delays
@@ -173,56 +177,69 @@ where
                             r.delayline.set_air_absoprtion(s.get_dist());
                             let orientation = s.get_lst_src_transform();
                             r.old_hrtf_id = r.new_hrtf_id;
-                            r.new_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(orientation.azimuth, orientation.elevation);                                          
+                            r.new_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(orientation.azimuth, orientation.elevation);
+                            r.dist_gain = 1.0/s.dist_rem;                                          
                         })
-                    });                   
-                },
+                    });    
+                // println!("Reveived!");
+                }, 
                 Err(_) => {},                
             };
-        
-            // new algo here
-            // Process Delay Lines
-            sources.sources.iter_mut().enumerate().for_each(|(n, source)| {
-                let mut par_src = unsafe { source.get_unchecked_mut(0) };
-                let fdn_line_index = map_ism_to_fdn_channel(0, 24);
-                par_src.output_buffer.iter_mut().zip(fdn_input_buf.buffer[fdn_line_index].iter_mut()).for_each(|(op, fi)| {
-                // source[0].output_buffer.iter_mut().zip(fdn_input_buf.buffer[fdn_line_index].iter_mut()).for_each(|(op, fi)| {
-                    *op = par_src.delayline.delayline.process(audio_file_managers[n].buffer.read());
-                    *fi = *op;
-                });
+            
+            // // new algo here
+            // // Process Delay Lines
+            // sources.sources.iter_mut().enumerate().for_each(|(n, source)| {
+            //     // let mut par_src = unsafe { source.get_unchecked_mut(0) };
+            //     let fdn_line_index = map_ism_to_fdn_channel(0, 24);
+            //     // par_src.output_buffer.iter_mut().zip(fdn_input_buf.buffer[fdn_line_index].iter_mut()).for_each(|(op, fi)| {
+            //     // output_buffers[0].iter_mut().zip(fdn_input_buf.buffer[fdn_line_index].iter_mut()).for_each(|(op, fi)| {
+            //     //     *op = source[0].delayline.delayline.process(audio_file_managers[n].buffer.read());
+            //     //     *fi = *op;
+            //     // });
                 
-                for ism_idx in ISM_INDEX_RANGES {
-                    ism_temp_buffer = source[ism_idx.0].output_buffer.clone();
-                    for i in ism_idx.1 .. ism_idx.2 {
-                        let child_src = unsafe { source.get_unchecked_mut(i) }; //&mut source[i];
-                        let fdn_line_index = map_ism_to_fdn_channel(i, 24);
-                        child_src.output_buffer.iter_mut().zip(fdn_input_buf.buffer[fdn_line_index].iter_mut()).zip(ism_temp_buffer.iter()).for_each(|((op, fi),ins)| {
-                            *op = child_src.delayline.delayline.process(*ins);
-                            *fi = *op;
-                        });
-                    }
-                }
+            //     let audio_in: Vec<f32> = (0..buffer_size).into_iter().map(|_| audio_file_managers[n].buffer.read()).collect();
+            //     source[0].delayline.process_block(&audio_in, &mut output_buffers[0]);
+            //     // println!("{:#?}", output_buffers[0]);
+            //     for ism_idx in ISM_INDEX_RANGES {
+            //         let par_src = &source[ism_idx.0];
+            //         for i in ism_idx.1 .. ism_idx.2 {
+            //             // let mut child_src = &source[i]; //&mut source[i];
+            //             let fdn_line_index = map_ism_to_fdn_channel(i, 24);
+            //             let temp = output_buffers[ism_idx.0].clone();
+            //             output_buffers[i].iter_mut().zip(fdn_input_buf.buffer[fdn_line_index].iter_mut()).zip(temp.iter()).for_each(|((op, fi),ins)| {
+            //                 let gain = source[i].dist_gain;
+            //                 *op = source[i].delayline.delayline.process(*ins) * 1.0 / gain;
+            //                 *fi = *op;
+            //             });
+            //         }
+            //     }
 
-                let mut source_iter = source.iter_mut().skip(1);
-                while let Some(src) = source_iter.next() {
-                    let new_hrtf = hrtf_storage.get_binaural_filter(src.new_hrtf_id);
-                    let old_hrtf = hrtf_storage.get_binaural_filter(src.old_hrtf_id);
-                    src.spatializer.process(&src.output_buffer, &mut temp_buffer, new_hrtf, old_hrtf);
-                }                                
-            })  ;          
+            //     // all sources
+            //     // for (n,src) in source.iter_mut().enumerate() {
+            //     //     let new_hrtf = hrtf_storage.get_binaural_filter(src.new_hrtf_id);
+            //     //     let old_hrtf = hrtf_storage.get_binaural_filter(src.old_hrtf_id);
+            //     //     src.spatializer.process(&output_buffers[n], &mut temp_buffer, new_hrtf, old_hrtf);
+            //     // }                                
+            //     // proc only one source 
+            //     let src = &mut source[0];
+            //         let new_hrtf = hrtf_storage.get_binaural_filter(src.new_hrtf_id);
+            //         let old_hrtf = hrtf_storage.get_binaural_filter(src.old_hrtf_id);
+            //         src.spatializer.process(&output_buffers[0], &mut temp_buffer, new_hrtf, old_hrtf);
+                
+            // })  ;          
 
             // Process FDN
-            for i in 0..buffer_size {
-                fdn.delaylines.iter_mut()
-                              .zip(fdn.matrix_outputs.iter())
-                              .zip(fdn.matrix_inputs.iter_mut())
-                              .zip(fdn_output_buf.buffer.iter_mut())
-                              .zip(fdn_input_buf.buffer.iter())
-                              .for_each(|((((fdn_in, mat_out),mat_in),fdn_out), fdn_input_buf)| {
-                    *mat_in = fdn_in.tick(fdn_input_buf[i]+mat_out);
-                    fdn_out[i] = *mat_in;
-                });
-            }
+            // for i in 0..buffer_size {
+            //     fdn.delaylines.iter_mut()
+            //                   .zip(fdn.matrix_outputs.iter())
+            //                   .zip(fdn.matrix_inputs.iter_mut())
+            //                   .zip(fdn_output_buf.buffer.iter_mut())
+            //                   .zip(fdn_input_buf.buffer.iter())
+            //                   .for_each(|((((fdn_in, mat_out),mat_in),fdn_out), fdn_input_buf)| {
+            //         *mat_in = fdn_in.tick(fdn_input_buf[i]+mat_out);
+            //         fdn_out[i] = *mat_in;
+            //     });
+            // }
 
             // FDN HRTF Processing            
             // fdn_output_buf.buffer.iter_mut().zip(fdn_spatializers.iter_mut()).
@@ -230,19 +247,37 @@ where
             //     let hrtf = hrtf_storage.get_binaural_filter(*id);
             //     fdn_spatializer.process(&fdn_out, &mut temp_buffer, hrtf, hrtf);
             // });
+            let mut audio_in: Vec<f32> = (0..buffer_size).into_iter().map(|_| test_audio_manager.read()).collect();
+            // let mut src = &mut sources.sources[0][0];
+            // let nh = hrtf_storage.get_binaural_filter(src.new_hrtf_id);
+            // let oh =hrtf_storage.get_binaural_filter(src.old_hrtf_id);
+            // src.spatializer.process(&audio_in, &mut temp_buffer, nh, oh);
             
+            sources.sources.iter_mut().take(2).for_each(|src| {
+                src.iter_mut().for_each(|s| {
+                    let nh = hrtf_storage.get_binaural_filter(s.new_hrtf_id);
+                    let oh =hrtf_storage.get_binaural_filter(s.old_hrtf_id);
+                    s.spatializer.process(&audio_in, &mut temp_buffer, nh, oh);
+                })
+            });
+          
+
+            // temp_buffer.chunks_mut(2).zip(audio_in.iter()).for_each(|(o,i)| {
+            //     o[0] =*i;
+            //     o[1] =*i;
+            // });
+
             for (frames, input) in data.chunks_mut(2).zip(temp_buffer.chunks(2)) {
                 frames.iter_mut().zip(input.iter()).for_each(|(o,i)| {                    
                     //  0.5 -> hardcoded volume (safety) for now
 
-                    *o = T::from_sample(*i*0.5f32);
+                    *o = T::from_sample(*i*0.00125f32);
                     if *o > T::from_sample(1.0f32) {
                         println!{"clipping!"}
                     }
                 });
             }
-
-            
+           
  
         },
         error_callback,
@@ -269,12 +304,13 @@ pub struct ISMDelayLine {
     pub spatializer: Spatializer,
     pub new_hrtf_id: usize,
     pub old_hrtf_id: usize,
+    pub dist_gain: f32,
 }
 impl ISMDelayLine {
     pub fn new(delayline_length: usize, buffer_length: usize, spatializer: Spatializer) -> Self {
         ISMDelayLine {delayline: DelayLine::new(delayline_length), 
                     output_buffer: vec![0.0f32; buffer_length].into(),
-                     spatializer, new_hrtf_id: 1 , old_hrtf_id: 1}
+                     spatializer, new_hrtf_id: 1 , old_hrtf_id: 1, dist_gain: 1.0}
     }
 }
 

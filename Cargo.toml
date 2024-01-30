@@ -11,6 +11,7 @@ name = "main"
 src = "src/main.rs"
 
 [dependencies]
+lazy_static = "1.4.0"
 interoptopus = "0.14.18"
 interoptopus_backend_csharp = "0.14.18"
 cpal = {path = "D:/Programming/Rust/cpal", features = ["asio"]}

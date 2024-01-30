@@ -2,7 +2,7 @@
 // Audio Device
 pub static TARGET_AUDIO_DEVICE: &str = "StudioLive AR ASIO";
 pub static SAMPLE_RATE: u32 = 48000;
-pub static BUFFER_SIZE: u32 = 64;
+pub static BUFFER_SIZE_CONF: u32 = 256;
 // Config structure
 pub static IMAGE_SOURCE_METHOD_ORDER: usize = 2;
 pub const C: f32 = 343.0;
