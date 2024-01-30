@@ -6,14 +6,23 @@ use crate::{audioSceneHandlerData::{Scene_data, Sources, Transform}, audio_modul
 
 // Lookup table for iterating over the corresponging image sources (order)
 // in the vectors
+// pub const ISM_INDEX_RANGES: [(usize, usize, usize); 7] = [
+//     (0, 1, 7),
+//     (1, 7, 37),
+//     (2, 37, 67),
+//     (3, 67, 97),
+//     (4, 97, 127),
+//     (5, 127, 157),
+//     (6, 157, 187), 
+// ];
 pub const ISM_INDEX_RANGES: [(usize, usize, usize); 7] = [
     (0, 1, 7),
-    (1, 7, 37),
-    (2, 37, 67),
-    (3, 67, 97),
-    (4, 97, 127),
-    (5, 127, 157),
-    (6, 157, 187), 
+    (1, 7, 12),
+    (2, 12, 17),
+    (3, 17, 22),
+    (4, 22, 27),
+    (5, 27, 32),
+    (6, 32, 37), 
 ];
 
 // 
@@ -52,11 +61,63 @@ pub struct IMS {
 impl IMS {
     pub fn create_raw(num_sources: usize) -> Self {
         // let sources = Vec::with_capacity(187);
-        let sources: Vec<Vec<Source>> = 
-            (0..num_sources).into_iter().map(|_| {
-                (0..187usize).into_iter().map(|_| Source::default()).collect()
-            }).collect();
+        // let sources: Vec<Vec<Source>> = 
+        //     (0..num_sources).into_iter().map(|_| {
+        //         (0..187usize).into_iter().map(|_| Source::default()).collect()
+        //     }).collect();
+        let mut sources = Vec::new();
 
+        for n in 0..num_sources {
+            let mut temp_vec = Vec::new();
+            let par_src = Source::default();
+            // let par_refl = par_src.get_reflector();
+            temp_vec.push(par_src);
+
+            // for order in 0..ism_order {
+            for i in ISM_INDEX_RANGES {
+
+                let par_src = &temp_vec[i.0];
+                let par_refl = par_src.get_reflector();   
+                for boundary in Reflected::VALUES {
+                    if par_refl != boundary {
+                        let mut child_src = Source::default();
+                        child_src.set_reflector(boundary);
+                        temp_vec.push(child_src);   
+                    }
+                }
+            }
+            // }
+
+                // for boundary in Reflected::VALUES {
+                //     if par_refl != boundary {
+                //         let mut child_src = Source::default();
+                //         child_src.set_reflector(boundary);
+                //         temp_vec.push(child_src);   
+                //     }
+                // }
+
+            sources.push(temp_vec);
+
+            // for parent_idx in 0 .. ISM_INDEX_RANGES.len() {
+                    
+            //     let idx_start: usize = ISM_INDEX_RANGES[parent_idx].1;
+            //     let idx_stop: usize = ISM_INDEX_RANGES[parent_idx].2;
+            //     let parent_src: &Source = &sources[ISM_INDEX_RANGES[parent_idx].0];
+            //     let parent_pos = &parent_src.get_pos();
+            //     let parent_dist = parent_src.get_dist();
+            //     let refl = parent_src.get_reflector();
+
+                
+            //     for i in idx_start .. idx_stop {
+            //         // assert!(sources.len() <= idx_stop);
+            //         let src = &mut sources[i];
+                    
+            //         src.set_pos(calc_ism_position(parent_pos, &room, src.get_reflector()));
+            //         src.set_dist(calc_distance(&src.get_pos(),&listener.get_pos()));
+            //         src.set_remaining_dist(src.get_dist()-parent_dist);
+            //     }
+            // };    
+        }
         Self {
             sources,
             ism_order: 2,
@@ -87,12 +148,15 @@ impl IMS {
             for parent_idx in 0 .. ISM_INDEX_RANGES.len() {
                 let parent_src = source_vec[ISM_INDEX_RANGES[parent_idx].0].clone();
                 for boundary in Reflected::VALUES {
-                    let mut src = create_ism(&parent_src, &room, &boundary);
-                    src.set_dist(calc_distance(&src.get_pos(), &listener.position));
-                    src.set_remaining_dist(src.get_dist()-parent_src.get_dist());
-                    update_lst_src_orientation(&listener_transform, scene_src, &mut src);
-                    update_src_lst_orientation( scene_src, &listener_transform,&mut src);           
-                    source_vec.push(src);
+                    // CHECK HERE!
+                    if boundary != parent_src.get_reflector() {
+                        let mut src = create_ism(&parent_src, &room, &boundary);
+                        src.set_dist(calc_distance(&src.get_pos(), &listener.position));
+                        src.set_remaining_dist(src.get_dist()-parent_src.get_dist());
+                        update_lst_src_orientation(&listener_transform, scene_src, &mut src);
+                        update_src_lst_orientation( scene_src, &listener_transform,&mut src);           
+                        source_vec.push(src);
+                }
                 }
             }
             sources.push(source_vec);
@@ -114,7 +178,14 @@ impl IMS {
         let room: Room = Room {dimension: Vector3::new(scene.room.width, scene.room.height, scene.room.length)};
         // iter over all sources
         for mut sources in &mut self.sources {
-            let mut scene_src = scene_iter.next().unwrap();
+            let mut scene_src = scene_iter.next();
+            let scene_src = match scene_src {
+                Some(x) => x,
+                None => {break},
+            };
+
+
+
             // update non-image sources
             sources[0].set_pos(Vector3::new(scene_src.position.x, scene_src.position.y, scene_src.position.z));
             update_lst_src_orientation(&listener_transform, scene_src, &mut sources[0]);
@@ -127,11 +198,14 @@ impl IMS {
                 let parent_src: &Source = &sources[ISM_INDEX_RANGES[parent_idx].0];
                 let parent_pos = &parent_src.get_pos();
                 let parent_dist = parent_src.get_dist();
-                
+                let refl = parent_src.get_reflector();
+
+
                 for i in idx_start .. idx_stop {
-                    assert!(sources.len() <= idx_stop);
+                    // assert!(sources.len() <= idx_stop);
                     let src = &mut sources[i];
-                    src.set_pos(calc_ism_position(parent_pos, &room, src.get_reflector()));
+                    
+                    src.set_pos(calc_ism_position(parent_pos, &room, &src.get_reflector()));
                     src.set_dist(calc_distance(&src.get_pos(),&listener.get_pos()));
                     src.set_remaining_dist(src.get_dist()-parent_dist);
                 }
@@ -215,4 +289,17 @@ fn calc_distance(v1: &Vector3<f32>, v2: &Vector3<f32>) -> f32 {
     ((v1.x-v2.x).powi(2) + 
      (v1.y-v2.y).powi(2) + 
      (v1.z-v2.z).powi(2)).sqrt()
+}
+
+#[cfg(test)]
+#[test]
+fn test_raw_createion() {
+    let ism_order = 1;
+    let num_sources = 2;
+    let sources = IMS::create_raw(num_sources);
+    for (n, i) in sources.sources.iter().enumerate() {
+        for ii in i {
+            println!("src.nr: {n}, Refl: {:?}", ii.get_reflector())
+        }
+    }
 }

@@ -140,6 +140,9 @@ impl Source {
         self.dist = calc_distance(&self.position, &listener.position);
         // self.buffer.set_delay_time_samples(48000.0 * self.dist / 343.0f32);
     }
+    pub fn set_reflector(&mut self, reflector: Reflected) {
+        self.reflector = reflector;
+    }
 
 }
 impl SourceType<Source> for Source {
@@ -152,8 +155,8 @@ impl SourceType<Source> for Source {
     fn get_orientation(&self) -> Quaternion<f32> {
         self.orientation
     }
-    fn get_reflector(&self) -> &Reflected {
-        &self.reflector
+    fn get_reflector(&self) -> Reflected {
+        self.reflector.clone()
     }
     fn get_pos(&self) -> Vector3<f32> {
         self.position
@@ -220,7 +223,7 @@ pub trait SourceType<T: Clone> {
     fn get_pos(&self) -> Vector3<f32>;
     fn set_pos(&mut self, position: Vector3<f32>);
     fn get_orientation(&self) -> Quaternion<f32>;
-    fn get_reflector(&self) -> &Reflected;
+    fn get_reflector(&self) -> Reflected;
     fn get_dist(&self) -> f32;
     fn set_dist(&mut self, dist: f32);
     fn get_src_lst_transform(&self) -> SphericalCoordinates;
@@ -274,8 +277,8 @@ impl SourceType<ISMLine<Source>> for ISMLine<Source> {
     fn get_orientation(&self) -> Quaternion<f32> {
         self.source.orientation
     }
-    fn get_reflector(&self) -> &Reflected {
-        &self.source.reflector
+    fn get_reflector(&self) -> Reflected {
+        self.source.reflector.clone()
     }
     fn get_pos(&self) -> Vector3<f32> {
         self.source.position
@@ -433,7 +436,7 @@ where T: Clone + SourceType<T>
                     
                     let current_source = arena.get(node_list[i]).unwrap().get();
                     
-                    if *current_source.get_reflector() != boundary  {
+                    if current_source.get_reflector() != boundary  {
                         let new_node = arena.new_node(T::create_ism(current_source, room, &boundary, current_source.get_spatializer().clone()));
                         node_list[i].append(new_node, &mut arena);
                         node_list.push(new_node);                       

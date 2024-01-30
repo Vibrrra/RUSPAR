@@ -3,11 +3,11 @@ use cpal::{
 };
 use indextree::{Arena, NodeId};
 use nalgebra::Vector3;
-use std::{cell::RefCell, path::Path, sync::mpsc::Receiver, time::Duration, vec};
+use std::{cell::RefCell, os::windows::process, path::Path, sync::mpsc::Receiver, thread::sleep, time::Duration, vec};
 use std::thread;
 
 use crate::{
-    assets::{DL_S, A_FDN, B_FDN, A_FDN_TC, B_FDN_TC}, audio_devices::get_output_device, buffers::CircularDelayBuffer, config::{audio_file_list, BUFFER_SIZE, C, IMAGE_SOURCE_METHOD_ORDER, MAX_SOURCES, SAMPLE_RATE, TARGET_AUDIO_DEVICE}, convolver::Spatializer, delaylines::{self, DelayLine}, fdn::{FeedbackDelayNetwork, calc_fdn_delayline_lengths, map_ism_to_fdn_channel, FDNInputBuffer, calc_hrtf_sphere_points}, filter::{BinauralFilter, FFTManager, FilterStorage}, image_source_method::{from_source_tree, is_per_model, ISMLine, Room, Source, SourceTrees, SourceType, N_IS_INDEX_RANGES}, ism_test_structure::{ISMDelayLines, IMS}, readwav::AudioFileManager
+    assets::{DL_S, A_FDN, B_FDN, A_FDN_TC, B_FDN_TC}, audio_devices::get_output_device, buffers::CircularDelayBuffer, config::{audio_file_list, BUFFER_SIZE, C, IMAGE_SOURCE_METHOD_ORDER, MAX_SOURCES, SAMPLE_RATE, TARGET_AUDIO_DEVICE}, convolver::Spatializer, delaylines::{self, DelayLine}, fdn::{FeedbackDelayNetwork, calc_fdn_delayline_lengths, map_ism_to_fdn_channel, FDNInputBuffer, calc_hrtf_sphere_points}, filter::{BinauralFilter, FFTManager, FilterStorage}, image_source_method::{from_source_tree, is_per_model, ISMLine, Room, Source, SourceTrees, SourceType, N_IS_INDEX_RANGES}, ism_test_structure::{ISMDelayLines, IMS, ISM_INDEX_RANGES}, readwav::AudioFileManager
 };
 
 pub fn start_audio_thread(rx: Receiver<IMS>, mut sources: IMS, room: Room) {
@@ -74,6 +74,8 @@ pub fn start_audio_thread(rx: Receiver<IMS>, mut sources: IMS, room: Room) {
     });
 }
 
+
+
 fn run<T>(
     device: cpal::Device,
     stream_config: cpal::StreamConfig,
@@ -123,14 +125,15 @@ where
 
     // Init AudioFileManager
     let mut audio_file_managers: Vec<AudioFileManager> = Vec::new();
-    for i in 0 ..1 {// MAX_SOURCES {
+    for i in 0 .. MAX_SOURCES {
         audio_file_managers.push( AudioFileManager::new(audio_file_list[i].to_string(), buffer_size));
     }
 
     // INIT . This loop blocks the current fucntion for 5 secs and waits for 
     // a first update from the server to initialize all variables with sane data
     loop {
-        match rx.recv_timeout(Duration::from_secs(5)) {
+        // match rx.recv_timeout(Duration::from_secs(5)) {
+        match rx.try_recv() {
             Ok(data) => {
                 sources.sources.iter_mut().zip(data.sources.iter()).for_each(|(rev, src)| {
                     rev.iter_mut().zip(src.iter()).for_each(|(r, s)|{
@@ -143,12 +146,15 @@ where
                         r.old_hrtf_id = r.new_hrtf_id;
                     })
                 });
-                
+                break;
             },
-            Err(e) => {panic!("Initial receive from server has failed to to timeout: {e}")},                
+            Err(e) => {
+                // panic!("Initial receive from server has failed to to timeout: {e}")
+                sleep(Duration::from_millis(10));
+            },                
         };
     }
- 
+    let mut ism_temp_buffer = vec![0.0f32; buffer_size];
     // Create Stream
     let mut temp_buffer = vec![0.0f32; 2*buffer_size];
     let stream:Result<cpal::Stream, cpal::BuildStreamError> = device.build_output_stream(
@@ -177,12 +183,26 @@ where
             // new algo here
             // Process Delay Lines
             sources.sources.iter_mut().enumerate().for_each(|(n, source)| {
-                let src = &mut source[0];
+                let mut par_src = unsafe { source.get_unchecked_mut(0) };
                 let fdn_line_index = map_ism_to_fdn_channel(0, 24);
-                src.output_buffer.iter_mut().zip(fdn_input_buf.buffer[fdn_line_index].iter_mut()).for_each(|(op, fi)| {
-                    *op = src.delayline.delayline.process(audio_file_managers[n].buffer.read());
+                par_src.output_buffer.iter_mut().zip(fdn_input_buf.buffer[fdn_line_index].iter_mut()).for_each(|(op, fi)| {
+                // source[0].output_buffer.iter_mut().zip(fdn_input_buf.buffer[fdn_line_index].iter_mut()).for_each(|(op, fi)| {
+                    *op = par_src.delayline.delayline.process(audio_file_managers[n].buffer.read());
                     *fi = *op;
                 });
+                
+                for ism_idx in ISM_INDEX_RANGES {
+                    ism_temp_buffer = source[ism_idx.0].output_buffer.clone();
+                    for i in ism_idx.1 .. ism_idx.2 {
+                        let child_src = unsafe { source.get_unchecked_mut(i) }; //&mut source[i];
+                        let fdn_line_index = map_ism_to_fdn_channel(i, 24);
+                        child_src.output_buffer.iter_mut().zip(fdn_input_buf.buffer[fdn_line_index].iter_mut()).zip(ism_temp_buffer.iter()).for_each(|((op, fi),ins)| {
+                            *op = child_src.delayline.delayline.process(*ins);
+                            *fi = *op;
+                        });
+                    }
+                }
+
                 let mut source_iter = source.iter_mut().skip(1);
                 while let Some(src) = source_iter.next() {
                     let new_hrtf = hrtf_storage.get_binaural_filter(src.new_hrtf_id);
@@ -205,18 +225,24 @@ where
             }
 
             // FDN HRTF Processing            
-            fdn_output_buf.buffer.iter_mut().zip(fdn_spatializers.iter_mut()).
-            zip(fdn_curr_hrtf_idx.iter()).for_each(|((fdn_out,fdn_spatializer), id)| {
-                let hrtf = hrtf_storage.get_binaural_filter(*id);
-                fdn_spatializer.process(&fdn_out, &mut temp_buffer, hrtf, hrtf);
-            });
+            // fdn_output_buf.buffer.iter_mut().zip(fdn_spatializers.iter_mut()).
+            // zip(fdn_curr_hrtf_idx.iter()).for_each(|((fdn_out,fdn_spatializer), id)| {
+            //     let hrtf = hrtf_storage.get_binaural_filter(*id);
+            //     fdn_spatializer.process(&fdn_out, &mut temp_buffer, hrtf, hrtf);
+            // });
             
             for (frames, input) in data.chunks_mut(2).zip(temp_buffer.chunks(2)) {
                 frames.iter_mut().zip(input.iter()).for_each(|(o,i)| {                    
                     //  0.5 -> hardcoded volume (safety) for now
+
                     *o = T::from_sample(*i*0.5f32);
+                    if *o > T::from_sample(1.0f32) {
+                        println!{"clipping!"}
+                    }
                 });
             }
+
+            
  
         },
         error_callback,
@@ -270,6 +296,102 @@ fn audio_process(output: &mut [f32], renderer: &mut dyn FnMut() -> (Vec<f32>, Ve
 
     }
 }
+
+struct ASS {
+    temp: Vec<f32>,
+    delayline0: ISMDelayLine,
+    delayline1: ISMDelayLine,
+    delayline2: ISMDelayLine,
+    delayline3: ISMDelayLine,
+    delayline4: ISMDelayLine,
+    delayline5: ISMDelayLine,
+    delayline6: ISMDelayLine,
+    delayline7: ISMDelayLine,
+    delayline8: ISMDelayLine,
+    delayline9: ISMDelayLine,
+    delayline10: ISMDelayLine,
+    delayline11: ISMDelayLine,
+    delayline12: ISMDelayLine,
+    delayline13: ISMDelayLine,
+    delayline14: ISMDelayLine,
+    delayline15: ISMDelayLine,
+    delayline16: ISMDelayLine,
+    delayline17: ISMDelayLine,
+    delayline18: ISMDelayLine,
+    delayline19: ISMDelayLine,
+    delayline20: ISMDelayLine,
+    delayline21: ISMDelayLine,
+    delayline22: ISMDelayLine,
+    delayline23: ISMDelayLine,
+    delayline24: ISMDelayLine,
+    delayline25: ISMDelayLine,
+    delayline26: ISMDelayLine,
+    delayline27: ISMDelayLine,
+    delayline28: ISMDelayLine,
+    delayline29: ISMDelayLine,
+    delayline30: ISMDelayLine,
+    delayline31: ISMDelayLine,
+    delayline32: ISMDelayLine,
+    delayline33: ISMDelayLine,
+    delayline34: ISMDelayLine,
+    delayline35: ISMDelayLine,
+    delayline36: ISMDelayLine,
+}
+
+
+
+impl ASS {
+    pub fn process(&mut self, audio_in: &[f32], out: &mut [f32]) {
+        ASS::proc_line(&mut self.delayline0, audio_in, &mut self.temp);
+        // ASS::proc_line(&mut self.delayline1, &self.temp, temp);
+        // ASS::proc_line(&mut self.delayline2, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline3, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline4, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline5, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline6, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline7, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline8, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline9, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline10, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline11, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline12, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline13, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline14, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline15, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline16, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline17, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline18, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline19, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline20, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline21, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline22, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline23, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline24, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline25, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline26, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline27, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline28, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline29, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline30, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline31, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline32, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline33, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline34, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline35, audio_in, temp);
+        // ASS::proc_line(&mut self.delayline36, audio_in, temp);
+
+    }
+
+    fn proc_line(delayline: &mut ISMDelayLine, audio_in: &[f32], temp: &mut [f32]) {
+        audio_in.iter().zip(delayline.output_buffer.iter_mut()).zip(temp.iter_mut()).for_each(|((ain, dout, ),t)| {
+            *dout = delayline.delayline.process(*ain);
+            *t = *dout;
+        })
+    }
+}
+
+
+
 
 // audio data generation template
 #[allow(unused)]

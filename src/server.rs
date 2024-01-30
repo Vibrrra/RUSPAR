@@ -33,6 +33,9 @@ pub fn start_server(port: u32) -> ! {
     // let mut ism_meta_data_vector = Arc::new(Mutex::new(vec![IsmMetaData::default(); 36]));
     start_audio_thread(rx, isms.clone(), room); //acoustic_scene.clone());
 
+    let byte_string = osc_handle.try_recv();
+    let scene_data = Scene_data::parse_from_bytes(&byte_string[..]).unwrap();
+    
     sleep(Duration::from_millis(2000));
     loop {
         // receive from adress
@@ -49,8 +52,8 @@ pub fn start_server(port: u32) -> ! {
         // new
         isms.update_from_scene(scene_data);
         let tx_res = tx.send(isms.clone());
-        let src = &isms.sources[0][0];
-        println!("Az: {}, El: {}", src.listener_source_orientation.azimuth, src.listener_source_orientation.elevation);
+        // let src = &isms.sources[0][0];
+        // println!("Az: {}, El: {}", src.listener_source_orientation.azimuth, src.listener_source_orientation.elevation);
         
         match tx_res {
             Ok(_) => {},
