@@ -184,8 +184,6 @@ impl IMS {
                 None => {break},
             };
 
-
-
             // update non-image sources
             let src = &mut sources[0];
             src.set_pos(Vector3::new(scene_src.position.x, scene_src.position.y, scene_src.position.z));
@@ -193,7 +191,7 @@ impl IMS {
             update_src_lst_orientation_from_transform( scene_src, &listener_transform,src);
             src.set_dist(calc_distance(&src.get_pos(),&listener.get_pos()));
             src.set_remaining_dist(src.get_dist());
-            for parent_idx in 0 .. ISM_INDEX_RANGES.len() {
+            for parent_idx in 0..ISM_INDEX_RANGES.len() {
                 
                 let idx_start: usize = ISM_INDEX_RANGES[parent_idx].1;
                 let idx_stop: usize = ISM_INDEX_RANGES[parent_idx].2;

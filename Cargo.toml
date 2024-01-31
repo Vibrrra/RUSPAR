@@ -14,8 +14,8 @@ src = "src/main.rs"
 lazy_static = "1.4.0"
 interoptopus = "0.14.18"
 interoptopus_backend_csharp = "0.14.18"
-#cpal = {path = "D:/Programming/Rust/cpal", features = ["asio"]}
-cpal = {path = "C:/Users/cschneiderwind/Documents/RUST/cpal", features = ["asio"]}
+cpal = {path = "D:/Programming/Rust/cpal", features = ["asio"]}
+# cpal = {path = "C:/Users/cschneiderwind/Documents/RUST/cpal", features = ["asio"]}
 #windows-named-pipe = {path = "C:/Users/cschneiderwind/Documents/RUST/windows-named-pipe-master"}
 rosc = "0.10.1"
 prost = "0.12"

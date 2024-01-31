@@ -182,8 +182,9 @@ where
                             r.delayline.set_air_absoprtion(s.get_dist());
                             let orientation = s.get_lst_src_transform();
                             r.old_hrtf_id = r.new_hrtf_id;
-                            r.new_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(orientation.azimuth, orientation.elevation);
-                            r.dist_gain = 1.0/s.remaining_dist;                                          
+                            let new_id = hrtf_tree.find_closest_stereo_filter_angle(orientation.azimuth, orientation.elevation); 
+                            r.new_hrtf_id = new_id;
+                            r.dist_gain = 1.0/s.dist;                                          
                         })
                     });    
                 // println!("Reveived!");
@@ -252,18 +253,21 @@ where
             //     let hrtf = hrtf_storage.get_binaural_filter(*id);
             //     fdn_spatializer.process(&fdn_out, &mut temp_buffer, hrtf, hrtf);
             // });
-            let mut audio_in: Vec<f32> = (0..buffer_size).into_iter().map(|_| test_audio_manager.read()).collect();
+            // let mut audio_in: Vec<f32> = (0..buffer_size).into_iter().map(|_| test_audio_manager.read()).collect();
             // let mut src = &mut sources.sources[0][0];
             // let nh = hrtf_storage.get_binaural_filter(src.new_hrtf_id);
             // let oh =hrtf_storage.get_binaural_filter(src.old_hrtf_id);
             // src.spatializer.process(&audio_in, &mut temp_buffer, nh, oh);
             
-            sources.sources.iter_mut().take(2).for_each(|src| {
+            sources.sources.iter_mut().take(1).zip(output_buffers.iter_mut()).for_each(|(src, dll_out)| {
+                let mut audio_in: Vec<f32> = (0..buffer_size).into_iter().map(|_| test_audio_manager.read() * src[0].dist_gain).collect();
                 src.iter_mut().for_each(|s| {
-                    audio_temp_buffer.iter_mut().for_each(|a| {*a *= s.dist_gain;});
+                    // audio_temp_buffer.copy_from_slice(&audio_in);
+                    // audio_temp_buffer.iter_mut().for_each(|a| {*a *= s.dist_gain;});
+                    s.delayline.delayline.process_block(&audio_in, dll_out);
                     let nh = hrtf_storage.get_binaural_filter(s.new_hrtf_id);
                     let oh =hrtf_storage.get_binaural_filter(s.old_hrtf_id);
-                    s.spatializer.process(&audio_in, &mut temp_buffer, nh, oh, s.dist_gain);
+                    s.spatializer.process(&dll_out, &mut temp_buffer, nh, oh, s.dist_gain);
                 })
             });
           
@@ -277,11 +281,11 @@ where
                 frames.iter_mut().zip(input.iter()).for_each(|(o,i)| {                    
                     //  0.5 -> hardcoded volume (safety) for now
 
-                    *o = T::from_sample(*i*0.00125f32);
-                    if *o > T::from_sample(1.0f32) {
-                        println!{"clipping!"}
-                        *o = T::from_sample(0.0f32);
-                    }
+                    *o = T::from_sample(*i*0.015f32);
+                    // if *o > T::from_sample(1.0f32) {
+                    //     println!{"clipping!"}
+                    //     *o = T::from_sample(0.0f32);
+                    // }
                 });
             }
            
@@ -297,7 +301,7 @@ where
 
     let stream_play_res: Result<(), cpal::PlayStreamError> = stream_res.play();
     match stream_play_res {
-        Ok(_) => { loop {thread::sleep(Duration::from_secs(500))}},
+        Ok(_) => { loop {}},
         Err(e) => {println!("Error opening stream: {:?}", e)},
     };
     println!("Stream terminated!");

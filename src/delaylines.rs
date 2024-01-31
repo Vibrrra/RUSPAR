@@ -13,7 +13,7 @@ pub struct DelayLine {
 impl DelayLine {
     pub fn new(delay_line_length: usize) -> Self {
         let air_absorption_coeff = getAirAttenuationCoeffFromDistance(0.0);
-        let coeffs = Coefficients { a1: 0.0, a2: 0.0, b0: 0.0, b1: 0.0, b2: 0.0 };
+        let coeffs = Coefficients { a1: 0.0, a2: 0.0, b0: 1.0, b1: 0.0, b2: 0.0 };
         let air_absorption_filter = DirectForm2Transposed::<f32>::new(coeffs);
         Self {
             delayline: CircularDelayBuffer::new(delay_line_length),
