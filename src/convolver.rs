@@ -229,10 +229,10 @@ impl Spatializer {
 
         // add previous filter output & crossfading
         output.chunks_mut(2).enumerate().for_each(|(i, s)| {
-            // s[0] += self.temp_output_buf_l[self.n_points + i] * self.fade_in[i] + self.temp_output_prev_buf_l[self.n_points + i] * self.fade_out[i];
-            // s[0] += self.temp_output_buf_l[self.n_points + i] * self.fade_in[i] + self.temp_output_prev_buf_l[self.n_points + i] * self.fade_out[i];
-            s[0] += (self.temp_output_buf_l[self.n_points + i] * self.fade_in[i] + self.temp_output_prev_buf_l[self.n_points + i] * self.fade_out[i]) * dist_gain;
-            s[1] += (self.temp_output_buf_r[self.n_points + i] * self.fade_in[i] + self.temp_output_prev_buf_r[self.n_points + i] * self.fade_out[i]) * dist_gain;
+            s[0] += self.temp_output_buf_l[self.n_points + i] * self.fade_in[i] + self.temp_output_prev_buf_l[self.n_points + i] * self.fade_out[i];
+            s[0] += self.temp_output_buf_l[self.n_points + i] * self.fade_in[i] + self.temp_output_prev_buf_l[self.n_points + i] * self.fade_out[i];
+            // s[0] += (self.temp_output_buf_l[self.n_points + i] * self.fade_in[i] + self.temp_output_prev_buf_l[self.n_points + i] * self.fade_out[i]) * dist_gain;
+            // s[1] += (self.temp_output_buf_r[self.n_points + i] * self.fade_in[i] + self.temp_output_prev_buf_r[self.n_points + i] * self.fade_out[i]) * dist_gain;
         }); // += -> = tu das weg im zweifel
 
                      

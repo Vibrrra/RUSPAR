@@ -26,6 +26,7 @@ pub fn start_audio_thread(rx: Receiver<IMS>, mut sources: IMS, room: Room, BUFFE
     let default_device_config = device.default_output_config().unwrap();
     println!("Host: {:?}", host);
     println!("Device: {:?}", device.name().unwrap());
+    println!("Config: {:?}", default_device_config);
     let sample_format = default_device_config.sample_format();
 
     // hardcoded for now -> should be 
@@ -131,6 +132,8 @@ where
     }
     let mut test_audio_manager = audio_file_managers[0].buffer.clone();
     let mut output_buffers: Vec<Vec<f32>> = vec![vec![0.0f32; buffer_size]; 37];
+
+    let mut audio_temp_buffer = vec![0.0f32; buffer_size];
     // INIT . This loop blocks the current fucntion for 5 secs and waits for 
     // a first update from the server to initialize all variables with sane data
     // loop {
@@ -256,6 +259,7 @@ where
             
             sources.sources.iter_mut().take(2).for_each(|src| {
                 src.iter_mut().for_each(|s| {
+                    audio_temp_buffer.iter_mut().for_each(|a| {*a *= s.dist_gain;});
                     let nh = hrtf_storage.get_binaural_filter(s.new_hrtf_id);
                     let oh =hrtf_storage.get_binaural_filter(s.old_hrtf_id);
                     s.spatializer.process(&audio_in, &mut temp_buffer, nh, oh, s.dist_gain);

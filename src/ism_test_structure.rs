@@ -206,11 +206,11 @@ impl IMS {
                 for i in idx_start .. idx_stop {
                     // assert!(sources.len() <= idx_stop);
                     let src = &mut sources[i];
-                    update_lst_src_orientation_from_quat(listener.orientation,  &listener.position, &src.get_pos(), src);
-                    update_src_lst_orientation_from_quat( src.get_orientation(), &src.get_pos(), &listener.position,src);
                     src.set_pos(calc_ism_position(parent_pos, &room, &src.get_reflector()));
                     src.set_dist(calc_distance(&src.get_pos(),&listener.get_pos()));
                     src.set_remaining_dist(src.get_dist()-parent_dist);
+                    update_lst_src_orientation_from_quat(listener.orientation,  &listener.position, &src.get_pos(), src);
+                    update_src_lst_orientation_from_quat( src.get_orientation(), &src.get_pos(), &listener.position,src);
                 }
             }
         }     
