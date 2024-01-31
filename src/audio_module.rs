@@ -24,6 +24,7 @@ pub fn start_audio_thread(rx: Receiver<IMS>, mut sources: IMS, room: Room, BUFFE
     };
 
     let default_device_config = device.default_output_config().unwrap();
+
     println!("Host: {:?}", host);
     println!("Device: {:?}", device.name().unwrap());
     println!("Config: {:?}", default_device_config);
