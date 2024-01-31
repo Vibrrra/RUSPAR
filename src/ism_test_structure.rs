@@ -142,8 +142,8 @@ impl IMS {
             src.reflector = Reflected::No;
             src.set_dist(calc_distance(&src.get_pos(), &listener.position));
             src.set_remaining_dist(src.get_dist());
-            update_lst_src_orientation(&listener_transform, scene_src, &mut src);
-            update_src_lst_orientation( scene_src, &listener_transform,&mut src);
+            update_lst_src_orientation_from_transform(&listener_transform, scene_src, &mut src);
+            update_src_lst_orientation_from_transform( scene_src, &listener_transform,&mut src);
             source_vec.push(src);
             for parent_idx in 0 .. ISM_INDEX_RANGES.len() {
                 let parent_src = source_vec[ISM_INDEX_RANGES[parent_idx].0].clone();
@@ -153,8 +153,8 @@ impl IMS {
                         let mut src = create_ism(&parent_src, &room, &boundary);
                         src.set_dist(calc_distance(&src.get_pos(), &listener.position));
                         src.set_remaining_dist(src.get_dist()-parent_src.get_dist());
-                        update_lst_src_orientation(&listener_transform, scene_src, &mut src);
-                        update_src_lst_orientation( scene_src, &listener_transform,&mut src);           
+                        update_lst_src_orientation_from_transform(&listener_transform, scene_src, &mut src);
+                        update_src_lst_orientation_from_transform( scene_src, &listener_transform,&mut src);           
                         source_vec.push(src);
                 }
                 }
@@ -189,8 +189,8 @@ impl IMS {
             // update non-image sources
             let src = &mut sources[0];
             src.set_pos(Vector3::new(scene_src.position.x, scene_src.position.y, scene_src.position.z));
-            update_lst_src_orientation(&listener_transform, scene_src, src);
-            update_src_lst_orientation( scene_src, &listener_transform,src);
+            update_lst_src_orientation_from_transform(&listener_transform, scene_src, src);
+            update_src_lst_orientation_from_transform( scene_src, &listener_transform,src);
             src.set_dist(calc_distance(&src.get_pos(),&listener.get_pos()));
             src.set_remaining_dist(src.get_dist());
             for parent_idx in 0 .. ISM_INDEX_RANGES.len() {
@@ -206,8 +206,8 @@ impl IMS {
                 for i in idx_start .. idx_stop {
                     // assert!(sources.len() <= idx_stop);
                     let src = &mut sources[i];
-                    update_lst_src_orientation(&listener_transform,  scene_src, src);
-                    update_src_lst_orientation( scene_src, &listener_transform,src);
+                    update_lst_src_orientation_from_quat(listener.orientation,  &listener.position, &src.get_pos(), src);
+                    update_src_lst_orientation_from_quat( src.get_orientation(), &src.get_pos(), &listener.position,src);
                     src.set_pos(calc_ism_position(parent_pos, &room, &src.get_reflector()));
                     src.set_dist(calc_distance(&src.get_pos(),&listener.get_pos()));
                     src.set_remaining_dist(src.get_dist()-parent_dist);
@@ -217,17 +217,27 @@ impl IMS {
     } 
 }
 
-fn update_lst_src_orientation(transform_a: &Transform, transform_b: &Transform, src: &mut Source) {
-    let temp = calculate_azimuth_and_elevation_with_rotation(&transform_a, transform_b);
+
+
+fn update_lst_src_orientation_from_transform(transform_a: &Transform, transform_b: &Transform, src: &mut Source) {
+    let temp = calculate_azimuth_and_elevation_with_from_transform(&transform_a, transform_b);
     src.set_lst_src_transform(SphericalCoordinates::new(temp.1, temp.2));
 } 
-fn update_src_lst_orientation(transform_a: &Transform, transform_b: &Transform, src: &mut Source) {
-    let temp = calculate_azimuth_and_elevation_with_rotation(&transform_a, transform_b);
+fn update_src_lst_orientation_from_transform(transform_a: &Transform, transform_b: &Transform, src: &mut Source) {
+    let temp = calculate_azimuth_and_elevation_with_from_transform(&transform_a, transform_b);
+    src.set_src_lst_transform(SphericalCoordinates::new(temp.1, temp.2));
+} 
+fn update_lst_src_orientation_from_quat(a_quat: Quaternion<f32>, a_pos: &Vector3<f32>, b_pos: &Vector3<f32>, src: &mut Source) {
+    let temp = calculate_azimuth_and_elevation_with_from_orientation(a_quat, a_pos, b_pos);
+    src.set_lst_src_transform(SphericalCoordinates::new(temp.1, temp.2));
+} 
+fn update_src_lst_orientation_from_quat(a_quat: Quaternion<f32>, a_pos: &Vector3<f32>, b_pos: &Vector3<f32>, src: &mut Source) {
+    let temp = calculate_azimuth_and_elevation_with_from_orientation(a_quat, a_pos, b_pos);
     src.set_src_lst_transform(SphericalCoordinates::new(temp.1, temp.2));
 } 
 
 // Utility Functions
-pub fn calculate_azimuth_and_elevation_with_rotation(a: &Transform, b: &Transform) -> (f32, f32, f32) {//Rotation<f32,3> {
+pub fn calculate_azimuth_and_elevation_with_from_transform(a: &Transform, b: &Transform) -> (f32, f32, f32) {//Rotation<f32,3> {
     // Calculate relative position vector from A to B in world frame
 
     let relative_position: Vec<f32> = vec![b.position.x - a.position.x,
@@ -236,6 +246,23 @@ pub fn calculate_azimuth_and_elevation_with_rotation(a: &Transform, b: &Transfor
 
     // Transform the relative position vector to the local frame of A
     let a_quat = get_quaternion(a);
+    // let b_quat = getQuaternion(b);
+    let a_uquat = UnitQuaternion::from_quaternion(a_quat);
+    
+
+    let temp1= a_uquat.transform_vector(&Vector3::<f32>::from_vec(relative_position));
+    let op =temp1.data.0[0];
+    cartesian_to_spherical(op)
+}
+pub fn calculate_azimuth_and_elevation_with_from_orientation(a_quat: Quaternion<f32>, a_pos: &Vector3<f32>, b_pos: &Vector3<f32>) -> (f32, f32, f32) {//Rotation<f32,3> {
+    // Calculate relative position vector from A to B in world frame
+
+    let relative_position: Vec<f32> = vec![b_pos.x - a_pos.x,
+                                           b_pos.y - a_pos.y,
+                                           b_pos.z - a_pos.z] ;
+
+    // Transform the relative position vector to the local frame of A
+    // let a_quat = get_quaternion(a);
     // let b_quat = getQuaternion(b);
     let a_uquat = UnitQuaternion::from_quaternion(a_quat);
     

@@ -133,29 +133,29 @@ where
     let mut output_buffers: Vec<Vec<f32>> = vec![vec![0.0f32; buffer_size]; 37];
     // INIT . This loop blocks the current fucntion for 5 secs and waits for 
     // a first update from the server to initialize all variables with sane data
-    loop {
-        // match rx.recv_timeout(Duration::from_secs(5)) {
-        match rx.try_recv() {
-            Ok(data) => {
-                sources.sources.iter_mut().zip(data.sources.iter()).for_each(|(rev, src)| {
-                    rev.iter_mut().zip(src.iter()).for_each(|(r, s)|{
-                        // set delays
-                        let delaytime = s.get_remaining_dist() / C * 1000f32;
-                        r.delayline.delayline.set_delay_time_ms(delaytime, sample_rate);
-                        r.delayline.set_air_absoprtion(s.get_dist());
-                        let orientation = s.get_lst_src_transform();
-                        r.new_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(orientation.azimuth, orientation.elevation);                  
-                        r.old_hrtf_id = r.new_hrtf_id;
-                    })
-                });
-                break;
-            },
-            Err(e) => {
-                // panic!("Initial receive from server has failed to to timeout: {e}")
-                sleep(Duration::from_millis(10));
-            },                
-        };
-    }
+    // loop {
+    //     // match rx.recv_timeout(Duration::from_secs(5)) {
+    //     match rx.try_recv() {
+    //         Ok(data) => {
+    //             sources.sources.iter_mut().zip(data.sources.iter()).for_each(|(rev, src)| {
+    //                 rev.iter_mut().zip(src.iter()).for_each(|(r, s)|{
+    //                     // set delays
+    //                     let delaytime = s.get_remaining_dist() / C * 1000f32;
+    //                     r.delayline.delayline.set_delay_time_ms(delaytime, sample_rate);
+    //                     r.delayline.set_air_absoprtion(s.get_dist());
+    //                     let orientation = s.get_lst_src_transform();
+    //                     r.new_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(orientation.azimuth, orientation.elevation);                  
+    //                     r.old_hrtf_id = r.new_hrtf_id;
+    //                 })
+    //             });
+    //             break;
+    //         },
+    //         Err(e) => {
+    //             // panic!("Initial receive from server has failed to to timeout: {e}")
+    //             sleep(Duration::from_millis(1));
+    //         },                
+    //     };
+    // }
     let mut ism_temp_buffer = vec![0.0f32; buffer_size];
     // Create Stream
     let mut temp_buffer = vec![0.0f32; 2*buffer_size];
@@ -168,7 +168,8 @@ where
 
             match rx.try_recv() {
                 Ok(data) => {
-                    
+                    // let o = data.sources[0][0].get_lst_src_transform();
+                    // println!("{:?}",o);
                     sources.sources.iter_mut().zip(data.sources.iter()).for_each(|(rev, src)| {
                         rev.iter_mut().zip(src.iter()).for_each(|(r, s)|{
                             // set delays
@@ -178,7 +179,7 @@ where
                             let orientation = s.get_lst_src_transform();
                             r.old_hrtf_id = r.new_hrtf_id;
                             r.new_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(orientation.azimuth, orientation.elevation);
-                            r.dist_gain = 1.0/s.dist_rem;                                          
+                            r.dist_gain = 1.0/s.remaining_dist;                                          
                         })
                     });    
                 // println!("Reveived!");
@@ -257,7 +258,7 @@ where
                 src.iter_mut().for_each(|s| {
                     let nh = hrtf_storage.get_binaural_filter(s.new_hrtf_id);
                     let oh =hrtf_storage.get_binaural_filter(s.old_hrtf_id);
-                    s.spatializer.process(&audio_in, &mut temp_buffer, nh, oh);
+                    s.spatializer.process(&audio_in, &mut temp_buffer, nh, oh, s.dist_gain);
                 })
             });
           
@@ -274,6 +275,7 @@ where
                     *o = T::from_sample(*i*0.00125f32);
                     if *o > T::from_sample(1.0f32) {
                         println!{"clipping!"}
+                        *o = T::from_sample(0.0f32);
                     }
                 });
             }
