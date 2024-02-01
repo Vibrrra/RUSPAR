@@ -51,7 +51,6 @@ fn main() {
         update_container.inner.push(None);
         update_container.inner.push(None);
 
-
         // start audio thread
         let _thread_handle_server = scope.spawn(move|| {
             let (tx,rx) = mpsc::sync_channel::<UpdateContainer>(1);
@@ -66,14 +65,11 @@ fn main() {
                             let o  = &update_container_audio_side.inner[0];
                             delayline.hrtf  = Some(o.clone().unwrap());
                             println!("from:audio: {:?}",delayline.hrtf);
-                            
                         },
                         Err(_) => {},
                     }; 
-                    thread::sleep(Duration::from_millis(500))
-                   
+                    thread::sleep(Duration::from_millis(500))   
                 }
-          
             });
           
             loop {
@@ -111,12 +107,12 @@ pub struct UpdateContainer<'a> {
     num_srcs: usize,
     inner: Vec<Option<&'a BinauralFilter>>
 }
+
 impl<'a>  UpdateContainer <'a> {
     pub fn update_at(&mut self, pos: usize, hrtf: &'a BinauralFilter) {
         self.inner[pos] = Some(hrtf);
         // self.inner[pos] = Some(hrtf.clone());
     }
-
 }
 
 pub struct ISMUpdateMessage<'a> {
