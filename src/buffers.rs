@@ -48,7 +48,7 @@ impl CircularDelayBuffer {
         if delay_time_in_samples > self.rb.capacity() as f32 {
             delay_time_in_samples = self.wp as f32 + 1.0;
         }
-        self.rp = delay_time_in_samples;
+        self.set_delay_time_samples(delay_time_in_samples);
     }
     pub fn read_chunk(&mut  self, n: usize, out: &mut [f32]) {
         out.iter_mut().for_each(|y| {*y = self.read();})

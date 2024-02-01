@@ -137,29 +137,49 @@ where
     let mut audio_temp_buffer = vec![0.0f32; buffer_size];
     // INIT . This loop blocks the current fucntion for 5 secs and waits for 
     // a first update from the server to initialize all variables with sane data
-    // loop {
-    //     // match rx.recv_timeout(Duration::from_secs(5)) {
-    //     match rx.try_recv() {
-    //         Ok(data) => {
-    //             sources.sources.iter_mut().zip(data.sources.iter()).for_each(|(rev, src)| {
-    //                 rev.iter_mut().zip(src.iter()).for_each(|(r, s)|{
-    //                     // set delays
-    //                     let delaytime = s.get_remaining_dist() / C * 1000f32;
-    //                     r.delayline.delayline.set_delay_time_ms(delaytime, sample_rate);
-    //                     r.delayline.set_air_absoprtion(s.get_dist());
-    //                     let orientation = s.get_lst_src_transform();
-    //                     r.new_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(orientation.azimuth, orientation.elevation);                  
-    //                     r.old_hrtf_id = r.new_hrtf_id;
-    //                 })
-    //             });
-    //             break;
-    //         },
-    //         Err(e) => {
-    //             // panic!("Initial receive from server has failed to to timeout: {e}")
-    //             sleep(Duration::from_millis(1));
-    //         },                
-    //     };
-    // }
+    loop {
+        // match rx.recv_timeout(Duration::from_secs(5)) {
+        match rx.try_recv() {
+            Ok(data) => {
+                sources.sources.iter_mut().zip(data.sources.iter()).for_each(|(rev, src)| {
+                    rev.iter_mut().zip(src.iter()).for_each(|(r, s)|{
+                        // set delays
+                        let delaytime = s.get_remaining_dist() / C * sample_rate;
+                        r.delayline.buffer.set_delay_time(delaytime);
+                        r.delayline.set_air_absoprtion(s.get_dist());
+                        let orientation = s.get_lst_src_transform();
+                        r.new_hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(orientation.azimuth, orientation.elevation);                  
+                        r.old_hrtf_id = r.new_hrtf_id;
+                    })
+                });
+                break;
+            },
+            Err(e) => {
+                // panic!("Initial receive from server has failed to to timeout: {e}")
+                // sleep(Duration::from_millis(1));
+            },                
+        };
+    }
+
+
+    // 
+    // sources.sources[0][0].delayline.delayline.set_delay_time_ms(100.0,sample_rate);
+    // sources.sources[0][1].delayline.delayline.set_delay_time_ms(500.0,sample_rate);
+    // sources.sources[0][2].delayline.delayline.set_delay_time_ms(14.0,sample_rate);
+    // sources.sources[0][3].delayline.delayline.set_delay_time_ms(18.0,sample_rate);
+    // sources.sources[0][4].delayline.delayline.set_delay_time_ms(17.0,sample_rate);
+    // sources.sources[0][5].delayline.delayline.set_delay_time_ms(13.0,sample_rate);
+    // sources.sources[0][6].delayline.delayline.set_delay_time_ms(11.0,sample_rate);
+    // sources.sources[0][7].delayline.delayline.set_delay_time_ms(13.0,sample_rate);
+    // sources.sources[0][8].delayline.delayline.set_delay_time_ms(14.0,sample_rate);
+    // sources.sources[0][9].delayline.delayline.set_delay_time_ms(15.0,sample_rate);
+    // sources.sources[0][10].delayline.delayline.set_delay_time_ms(10.0, sample_rate);
+    // sources.sources[0][11].delayline.delayline.set_delay_time_ms(10.0, sample_rate);
+    // sources.sources[0][12].delayline.delayline.set_delay_time_ms(10.0, sample_rate);
+    // sources.sources[0][13].delayline.delayline.set_delay_time_ms(10.0, sample_rate);
+    // sources.sources[0][14].delayline.delayline.set_delay_time_ms(10.0, sample_rate);
+    // sources.sources[0][15].delayline.delayline.set_delay_time_ms(10.0, sample_rate);
+
     let mut ism_temp_buffer = vec![0.0f32; buffer_size];
     // Create Stream
     let mut temp_buffer = vec![0.0f32; 2*buffer_size];
@@ -177,14 +197,14 @@ where
                     sources.sources.iter_mut().zip(data.sources.iter()).for_each(|(rev, src)| {
                         rev.iter_mut().zip(src.iter()).for_each(|(r, s)|{
                             // set delays
-                            let delaytime = s.get_remaining_dist() / C * 1000f32;
-                            r.delayline.delayline.set_delay_time_ms(delaytime, sample_rate);
+                            let delaytime = s.get_remaining_dist() / C * sample_rate;
+                            r.delayline.buffer.set_delay_time(delaytime);
                             r.delayline.set_air_absoprtion(s.get_dist());
                             let orientation = s.get_lst_src_transform();
                             r.old_hrtf_id = r.new_hrtf_id;
                             let new_id = hrtf_tree.find_closest_stereo_filter_angle(orientation.azimuth, orientation.elevation); 
                             r.new_hrtf_id = new_id;
-                            r.dist_gain = 1.0/s.dist;                                          
+                            r.dist_gain = 1.0/s.remaining_dist;                                          
                         })
                     });    
                 // println!("Reveived!");
@@ -259,19 +279,61 @@ where
             // let oh =hrtf_storage.get_binaural_filter(src.old_hrtf_id);
             // src.spatializer.process(&audio_in, &mut temp_buffer, nh, oh);
             
-            sources.sources.iter_mut().take(1).zip(output_buffers.iter_mut()).for_each(|(src, dll_out)| {
-                let mut audio_in: Vec<f32> = (0..buffer_size).into_iter().map(|_| test_audio_manager.read() * src[0].dist_gain).collect();
-                src.iter_mut().for_each(|s| {
-                    // audio_temp_buffer.copy_from_slice(&audio_in);
-                    // audio_temp_buffer.iter_mut().for_each(|a| {*a *= s.dist_gain;});
-                    s.delayline.delayline.process_block(&audio_in, dll_out);
-                    let nh = hrtf_storage.get_binaural_filter(s.new_hrtf_id);
-                    let oh =hrtf_storage.get_binaural_filter(s.old_hrtf_id);
-                    s.spatializer.process(&dll_out, &mut temp_buffer, nh, oh, s.dist_gain);
-                })
-            });
-          
+            // some is wokring
+            // sources.sources.iter_mut().take(1).zip(output_buffers.iter_mut()).for_each(|(src, dll_out)| {
+            //     let audio_in: Vec<f32> = (0..buffer_size).into_iter().map(|_| test_audio_manager.read() * src[0].dist_gain).collect();
+            //     src.iter_mut().take(1).for_each(|s| {
+            //         // audio_temp_buffer.copy_from_slice(&audio_in);
+            //         // audio_temp_buffer.iter_mut().for_each(|a| {*a *= s.dist_gain;});
+            //         s.delayline.process_block(&audio_in, dll_out);
+            //         let nh = hrtf_storage.get_binaural_filter(s.new_hrtf_id);
+            //         let oh =hrtf_storage.get_binaural_filter(s.old_hrtf_id);
+            //         s.spatializer.process(&dll_out, &mut temp_buffer, nh, oh, s.dist_gain);
+            //         s.spatializer.process(&dll_out, &mut temp_buffer, nh, oh, s.dist_gain);
+            //     })
+            // });
+            let mut audio_in: Vec<f32> = (0..buffer_size).into_iter().map(|_| test_audio_manager.read()).collect();
+            audio_temp_buffer.copy_from_slice(&audio_in);  
 
+            let src0 = &mut sources.sources[0][0];
+                src0.delayline.process_block2(&mut audio_in,src0.dist_gain);
+                let nh = hrtf_storage.get_binaural_filter(src0.new_hrtf_id);
+                let oh =hrtf_storage.get_binaural_filter(src0.old_hrtf_id);
+                src0.spatializer.process(&audio_in, &mut temp_buffer, nh, oh);
+            for i in 1 .. 7 {
+                let src = &mut sources.sources[0][i];
+                src.delayline.process_block(&audio_in, &mut src.output_buffer,src.dist_gain);
+                let nh = hrtf_storage.get_binaural_filter(src.new_hrtf_id);
+                let oh =hrtf_storage.get_binaural_filter(src.old_hrtf_id);
+                src.spatializer.process(&audio_in, &mut temp_buffer, nh, oh);
+            
+
+                // sources.sources[0][i].delayline.process_block2(&mut audio_in,src.dist_gain);
+                // sources.sources[0][2].delayline.process_block2(&mut audio_in);
+                // sources.sources[0][3].delayline.process_block2(&mut audio_in);
+                // sources.sources[0][4].delayline.process_block2(&mut audio_in);
+                // sources.sources[0][5].delayline.process_block2(&mut audio_in);
+                // sources.sources[0][6].delayline.process_block2(&mut audio_in);
+                // sources.sources[0][7].delayline.process_block2(&mut audio_in);
+                // sources.sources[0][8].delayline.process_block2(&mut audio_in);
+                // sources.sources[0][9].delayline.process_block2(&mut audio_in);
+                // sources.sources[0][10].delayline.process_block2(&mut audio_in);
+                // sources.sources[0][11].delayline.process_block2(&mut audio_in);
+                // sources.sources[0][12].delayline.process_block2(&mut audio_in);
+                // sources.sources[0][13].delayline.process_block2(&mut audio_in);
+                // sources.sources[0][14].delayline.process_block2(&mut audio_in);
+                // sources.sources[0][15].delayline.process_block2(&mut audio_in);    
+            }
+            
+
+            // let nh = hrtf_storage.get_binaural_filter(sources.sources[0][1].new_hrtf_id);
+            // let oh =hrtf_storage.get_binaural_filter(sources.sources[0][1].old_hrtf_id);
+            // sources.sources[0][0].spatializer.process(&audio_in, &mut temp_buffer, nh, oh);
+            // // s.spatializer.process(&dll_out, &mut temp_buffer, nh, oh, s.dist_gain);
+            // let nh = hrtf_storage.get_binaural_filter(sources.sources[0][0].new_hrtf_id);
+            // let oh =hrtf_storage.get_binaural_filter(sources.sources[0][0].old_hrtf_id);
+            // sources.sources[0][1].spatializer.process(&audio_temp_buffer, &mut temp_buffer, nh, oh);
+               
             // temp_buffer.chunks_mut(2).zip(audio_in.iter()).for_each(|(o,i)| {
             //     o[0] =*i;
             //     o[1] =*i;
@@ -280,14 +342,16 @@ where
             for (frames, input) in data.chunks_mut(2).zip(temp_buffer.chunks(2)) {
                 frames.iter_mut().zip(input.iter()).for_each(|(o,i)| {                    
                     //  0.5 -> hardcoded volume (safety) for now
-
                     *o = T::from_sample(*i*0.015f32);
-                    // if *o > T::from_sample(1.0f32) {
-                    //     println!{"clipping!"}
-                    //     *o = T::from_sample(0.0f32);
-                    // }
                 });
             }
+
+            // for (frames, input) in data.chunks_mut(2).zip(audio_in.iter()) {
+            
+            //         frames[0] = T::from_sample(*input*0.15f32);
+            //         frames[1] = T::from_sample(*input*0.15f32);
+                
+            // }
            
  
         },

@@ -118,7 +118,6 @@ impl Spatializer {
                     // prev_er_filter: &BinauralFilter, 
                     // prev_lr_filter: &BinauralFilter,
                     // prev_sd_filter: &MonoFilter,
-                    dist_gain: f32,
                 ) {
                      
         
