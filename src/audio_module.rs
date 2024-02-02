@@ -3,6 +3,7 @@ use cpal::{
 };
 use indextree::{Arena, NodeId};
 use nalgebra::Vector3;
+
 use std::{cell::RefCell, os::windows::process, path::Path, sync::mpsc::Receiver, thread::sleep, time::Duration, vec};
 use std::thread;
 
@@ -199,12 +200,12 @@ where
                             // set delays
                             let delaytime = s.get_remaining_dist() / C * sample_rate;
                             r.delayline.buffer.set_delay_time(delaytime);
-                            r.delayline.set_air_absoprtion(s.get_dist());
+                            r.delayline.set_air_absoprtion(s.get_remaining_dist());
                             let orientation = s.get_lst_src_transform();
                             r.old_hrtf_id = r.new_hrtf_id;
                             let new_id = hrtf_tree.find_closest_stereo_filter_angle(orientation.azimuth, orientation.elevation); 
                             r.new_hrtf_id = new_id;
-                            r.dist_gain = 1.0/s.remaining_dist;                                          
+                            r.dist_gain = 1.0/s.dist;                                          
                         })
                     });    
                 // println!("Reveived!");
@@ -292,22 +293,50 @@ where
             //         s.spatializer.process(&dll_out, &mut temp_buffer, nh, oh, s.dist_gain);
             //     })
             // });
-            let mut audio_in: Vec<f32> = (0..buffer_size).into_iter().map(|_| test_audio_manager.read()).collect();
-            audio_temp_buffer.copy_from_slice(&audio_in);  
+            // let mut audio_in: Vec<f32> = (0..buffer_size).into_iter().map(|_| test_audio_manager.read()).collect();
+            // audio_temp_buffer.copy_from_slice(&audio_in);  
 
-            let src0 = &mut sources.sources[0][0];
-                src0.delayline.process_block2(&mut audio_in,src0.dist_gain);
-                let nh = hrtf_storage.get_binaural_filter(src0.new_hrtf_id);
-                let oh =hrtf_storage.get_binaural_filter(src0.old_hrtf_id);
-                src0.spatializer.process(&audio_in, &mut temp_buffer, nh, oh);
-            for i in 1 .. 7 {
-                let src = &mut sources.sources[0][i];
-                src.delayline.process_block(&audio_in, &mut src.output_buffer,src.dist_gain);
+            // let src0 = &mut sources.sources[0][0];
+            //     src0.delayline.process_block2(&mut audio_in,src0.dist_gain);
+            //     let nh = hrtf_storage.get_binaural_filter(src0.new_hrtf_id);
+            //     let oh =hrtf_storage.get_binaural_filter(src0.old_hrtf_id);
+            //     src0.spatializer.process(&audio_in, &mut temp_buffer, nh, oh);
+            // for i in 1 .. 7 {
+            //     let src = &mut sources.sources[0][i];
+            //     src.delayline.process_block(&audio_in, &mut src.output_buffer,src.dist_gain);
+            //     let nh = hrtf_storage.get_binaural_filter(src.new_hrtf_id);
+            //     let oh =hrtf_storage.get_binaural_filter(src.old_hrtf_id);
+            //     src.spatializer.process(&audio_in, &mut temp_buffer, nh, oh);
+            // }
+            for i in 0..1 {
+                
+                // read audio
+                let mut audio_in: Vec<f32> = (0..buffer_size).into_iter().map(|_| test_audio_manager.read()).collect();
+                let parent_src_idx = 0;
+                let mut src = &mut sources.sources[i][parent_src_idx];
+                src.delayline.process_block(&audio_in, &mut src.output_buffer);
                 let nh = hrtf_storage.get_binaural_filter(src.new_hrtf_id);
                 let oh =hrtf_storage.get_binaural_filter(src.old_hrtf_id);
-                src.spatializer.process(&audio_in, &mut temp_buffer, nh, oh);
-            
+                src.spatializer.process(&src.output_buffer, &mut temp_buffer, nh, oh, src.dist_gain);
 
+
+
+                for ism_ranges_idx in 0..ISM_INDEX_RANGES.len() {
+                    let parent_src_idx = ISM_INDEX_RANGES[ism_ranges_idx].0;
+                    let src = &sources.sources[i][parent_src_idx];
+                    audio_temp_buffer.copy_from_slice(src.output_buffer.as_slice()); 
+                    // let o = sources.sources[i][parent_src_idx].output_buffer.as_slice(); 
+                    for ism_idx in ISM_INDEX_RANGES[ism_ranges_idx].1 .. ISM_INDEX_RANGES[ism_ranges_idx].2 {
+                        
+                        let src = &mut sources.sources[i][ism_idx];   
+                        src.delayline.process_block(&audio_temp_buffer, &mut src.output_buffer);    
+                        let nh = hrtf_storage.get_binaural_filter(src.new_hrtf_id);
+                        let oh =hrtf_storage.get_binaural_filter(src.old_hrtf_id);
+                        src.spatializer.process(&src.output_buffer, &mut temp_buffer, nh, oh,  src.dist_gain);
+                        
+                    }
+                }
+            }
                 // sources.sources[0][i].delayline.process_block2(&mut audio_in,src.dist_gain);
                 // sources.sources[0][2].delayline.process_block2(&mut audio_in);
                 // sources.sources[0][3].delayline.process_block2(&mut audio_in);
@@ -323,7 +352,7 @@ where
                 // sources.sources[0][13].delayline.process_block2(&mut audio_in);
                 // sources.sources[0][14].delayline.process_block2(&mut audio_in);
                 // sources.sources[0][15].delayline.process_block2(&mut audio_in);    
-            }
+            // }
             
 
             // let nh = hrtf_storage.get_binaural_filter(sources.sources[0][1].new_hrtf_id);

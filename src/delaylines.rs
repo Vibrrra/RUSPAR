@@ -30,9 +30,9 @@ impl DelayLine {
         out
     }
 
-    pub fn process_block(&mut self, audio_in: &[f32], audio_out: &mut [f32], gain: f32) {
+    pub fn process_block(&mut self, audio_in: &[f32], audio_out: &mut [f32]) {
         audio_in.iter().zip(audio_out.iter_mut()).for_each(|(i,o)| {
-            *o = self.process(*i) * gain;
+            *o = self.process(*i);
         })
     }
     pub fn process_block2(&mut self, audioblock: &mut [f32], gain: f32) {
@@ -123,7 +123,7 @@ fn test_delay_line() {
     cb.buffer.set_delay_time(3.0);// set_delay_time_samples(3.0);
 
     let mut o = vec![0.0; signal.len()];
-    cb.process_block(&signal, &mut o, 1.0f32);
+    cb.process_block(&signal, &mut o);
        
         print!("{:#?} ", o)
     
