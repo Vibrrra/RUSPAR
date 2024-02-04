@@ -2,6 +2,13 @@
 
 // use crate::delay_line::{self, RingBuffer};
 
+use std::marker::PhantomData;
+
+use biquad::coefficients;
+use num_traits::Float;
+
+use crate::buffers::CircularDelayBuffer;
+
 
 
 #[allow(dead_code)]
@@ -11,24 +18,28 @@ enum FilterType {
 }
 
 #[derive(Clone)]
-pub struct IIRFilterCoefficients{
-    b: Vec<f32>,
-    a: Vec<f32>,
-    a0: f32,
-    b0: f32,
-    b_last: f32,
-    a_last: f32,
+pub struct IIRFilterCoefficients<T>
+where T: Float
+{
+    b: Vec<T>,
+    a: Vec<T>,
+    a0: T,
+    b0: T,
+    b_last: T,
+    a_last: T,
     order: usize
 }
 
 
-impl IIRFilterCoefficients {
-    pub fn new(mut b: Vec<f32>, mut a: Vec<f32>) -> Self {
+impl<T> IIRFilterCoefficients<T> 
+where T: Float
+{
+    pub fn new(mut b: Vec<T>, mut a: Vec<T>) -> Self {
         
         
         // extract a0 to scale all coefficients if it is != 1.0
-        let a0 = a[0];
-        let b0: f32 = b[0] /a[0];
+        let a0: T = a[0];
+        let b0: T = b[0] /a[0];
         
         
         let num_b = b.len();
@@ -40,8 +51,8 @@ impl IIRFilterCoefficients {
         
         let order = (num_b as i32).max(num_a as i32) as usize -1;
         
-        let mut bn = vec![0.0; order-1];
-        let mut an: Vec<f32> = vec![0.0; order-1];
+        let mut bn: Vec<T> = vec![T::zero(); order-1];
+        let mut an: Vec<T> = vec![T::zero(); order-1];
         
         
         [0..order-1].iter().enumerate().for_each(|(i, _)| {bn[i] = b[i+1] / a0});
@@ -58,16 +69,18 @@ impl IIRFilterCoefficients {
 }
 
 #[derive(Clone)]
-pub struct IIRFilter {
-    coefficients: IIRFilterCoefficients,
+pub struct IIRFilter 
+{
+    coefficients: IIRFilterCoefficients<f32>,
     buffer: Vec<f32>,
 }
 
-impl IIRFilter {
+impl IIRFilter 
+{
 
-    pub fn from_filtercoefficients(coefficients: &IIRFilterCoefficients) -> Self {
+    pub fn from_filtercoefficients(coefficients: &IIRFilterCoefficients<f32>) -> Self {
         
-        let mut buffer = vec![0.0; coefficients.required_internal_buffer() ];
+        let mut buffer = vec![0.0f32; coefficients.required_internal_buffer() ];
                 
         Self {
             coefficients: coefficients.clone(),
@@ -100,6 +113,124 @@ impl IIRFilter {
     }}
 
 
+#[derive(Default, Debug, Clone)]
+pub struct HrtfFilterIIR {
+    coeffs: HRTFFilterIIRCoefficients,
+    buffer: [f32; 32],
+   
+}
+impl HrtfFilterIIR {
+    pub fn from_coeffs(coeffs: HRTFFilterIIRCoefficients) -> Self {
+        Self {
+            coeffs,
+            buffer: [0.0; 32],
+         
+        }
+    }
+    pub fn process(&mut self, audio_in: f32) -> f32 {
+        // let mut buffer_next = self.buffer.iter_mut();
+        
+        let mut y: f32 = 0.0;
+        unsafe {
+            y = *self.buffer.get_unchecked(0) + audio_in * *self.coeffs.b.get_unchecked(0);
+
+            for i in 0 .. 15 {
+                *self.buffer.get_unchecked_mut(i) = *self.buffer.get_unchecked(i+1) 
+                + audio_in * *self.coeffs.b.get_unchecked(i+1) 
+                + y * *self.coeffs.a.get_unchecked(i+1); 
+
+            }
+            for i in 15..30 {
+                *self.buffer.get_unchecked_mut(i) = *self.buffer.get_unchecked(i+1) 
+                + audio_in * *self.coeffs.b.get_unchecked(i+1); 
+            }
+            *self.buffer.get_unchecked_mut(31) = audio_in * *self.coeffs.b.get_unchecked(32); 
+            
+        }
+        y
+    }
+   
+    pub fn flush(&mut self) {
+        self.buffer.iter_mut().for_each(|x| {*x = 0.0f32})
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct HRTFFilterIIRCoefficients {
+    b: [f32; 33],
+    a: [f32; 16],
+}
+
+impl Default for HRTFFilterIIRCoefficients {
+    fn default() -> Self {
+        let mut b = [0.0; 33];
+        b[0] = 1.0;
+        let mut a =  [0.0; 16]; 
+        a[0] = 1.0; // just for convenience
+        Self { b, a}        
+    }
+}
+
+impl HRTFFilterIIRCoefficients{
+    pub fn new(a_coeffs: &[f32], b_coeffs: &[f32]) -> HRTFFilterIIRCoefficients {
+        let mut filter_coeffs = HRTFFilterIIRCoefficients::default();
+        filter_coeffs.a.copy_from_slice(a_coeffs);
+        filter_coeffs.b.copy_from_slice(b_coeffs);
+        filter_coeffs
+
+    } 
+    pub fn update_coeffs(&mut self, new_coeffs: &HRTFFilterIIRCoefficients,) {
+        self.a.copy_from_slice(&new_coeffs.a);
+        self.b.copy_from_slice(&new_coeffs.b);
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct HrtfProcessorIIR
+{
+    left_delay: CircularDelayBuffer,
+    right_delay: CircularDelayBuffer,
+    left_delay_old: CircularDelayBuffer,
+    right_delay_old: CircularDelayBuffer,
+    hrir_iir_r: HrtfFilterIIR,
+    hrir_iir_r_old: HrtfFilterIIR,
+    hrir_iir_l: HrtfFilterIIR,
+    hrir_iir_l_old: HrtfFilterIIR,   
+}
+
+impl HrtfProcessorIIR
+{
+    pub fn new() -> Self {
+        Self {
+            left_delay: CircularDelayBuffer::new(32),
+            right_delay: CircularDelayBuffer::new(32),
+            left_delay_old: CircularDelayBuffer::new(32),
+            right_delay_old: CircularDelayBuffer::new(32),
+            hrir_iir_l: HrtfFilterIIR::default(),
+            hrir_iir_l_old: HrtfFilterIIR::default(),           
+            hrir_iir_r: HrtfFilterIIR::default(),
+            hrir_iir_r_old: HrtfFilterIIR::default(),           
+        } 
+    }
+    pub fn update(&mut self, new_coeffs_l: HRTFFilterIIRCoefficients, new_coeffs_r: HRTFFilterIIRCoefficients) {
+        self.hrir_iir_l_old.coeffs.update_coeffs(&self.hrir_iir_l.coeffs);
+        self.hrir_iir_l.coeffs = new_coeffs_l;
+        self.hrir_iir_r_old.coeffs.update_coeffs(&self.hrir_iir_r.coeffs);
+        self.hrir_iir_r.coeffs = new_coeffs_r;
+    }
+    pub fn process(&mut self, audio_in: f32, crossfade_in_val: f32, crossfade_out_val: f32) -> [f32; 2] { 
+        let mut l = self.left_delay.process(audio_in);
+        let mut r = self.right_delay.process(audio_in);
+        let mut l_old = self.left_delay_old.process(audio_in);
+        let mut r_old = self.right_delay_old.process(audio_in);
+        l = self.hrir_iir_l.process(l) * crossfade_in_val;
+        l += self.hrir_iir_l_old.process(l_old) * crossfade_out_val;
+        r = self.hrir_iir_l.process(r) * crossfade_in_val;
+        r += self.hrir_iir_l_old.process(r_old) * crossfade_out_val;
+        [l,r]
+
+    }
+}
 
 #[cfg(test)]
 mod tests {

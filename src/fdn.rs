@@ -1,4 +1,4 @@
-use std::f32::consts::PI;
+use std::{f32::consts::PI, fmt::Debug, marker::PhantomData};
 
 use crate::{
     buffers,
@@ -8,11 +8,12 @@ use biquad::{Biquad, Coefficients, DirectForm2Transposed};
 // use crate::mixingmatrix;
 use cfg_if;
 use nalgebra::Vector3;
-use num_traits::Zero;
+use num_traits::{Float, Zero};
 use rand::Rng;
 
 #[allow(unused)]
-pub struct FeedbackDelayNetwork {
+pub struct FeedbackDelayNetwork
+{
     pub delaylines: Vec<FDNLine>,
     pub delayline_inputs: Vec<f32>,
     pub delayline_outpus: Vec<f32>,
@@ -20,7 +21,8 @@ pub struct FeedbackDelayNetwork {
     pub matrix_outputs: [f32; 24],
 }
 
-impl FeedbackDelayNetwork {
+impl FeedbackDelayNetwork 
+{
     pub fn new(
         n: usize,
         blocksize: usize, 
@@ -31,17 +33,17 @@ impl FeedbackDelayNetwork {
         fdn_ah_vec: Vec<f32>,
         // biquad_coeff_vec: Vec<Coefficients<f32>>,
     ) -> Self {
-        let mut delaylines = Vec::new();
+        let mut delaylines: Vec<FDNLine> = Vec::new();
         for i in 0..n {
             // delaylines.push(FDNLine::new(delay_line_lengths[i], biquad_coeff_vec[i]));
             delaylines.push(FDNLine::new(delay_line_lengths[i], fdn_b_vecs[i].clone(), fdn_a_vecs[i].clone()));
         }
         Self {
             delaylines,
-            delayline_inputs: vec![0.0; n],
-            delayline_outpus: vec![0.0; n],
-            matrix_inputs:  [0.0; 24],
-            matrix_outputs: [0.0; 24],
+            delayline_inputs: vec![f32::zero(); n],
+            delayline_outpus: vec![f32::zero(); n],
+            matrix_inputs:  [f32::zero(); 24],
+            matrix_outputs: [f32::zero(); 24],
             //mixing_matrix: create_hadamard(N),
             // mixing_matrix: todo()
         }
@@ -56,31 +58,31 @@ impl FeedbackDelayNetwork {
         fdn_ah_vec: [f32;9],
         // biquad_coeff_vec: Vec<Coefficients<f32>>,
     ) -> Self {
-        let mut delaylines = Vec::new();
+        let mut delaylines:  Vec<FDNLine> = Vec::new();
         for i in 0..n {
             // delaylines.push(FDNLine::new(delay_line_lengths[i], biquad_coeff_vec[i]));
             delaylines.push(FDNLine::new(delay_line_lengths[i].into(), fdn_b_vecs[i].clone().into(), fdn_a_vecs[i].clone().into()));
         }
         Self {
             delaylines,
-            delayline_inputs: vec![0.0; n],
-            delayline_outpus: vec![0.0; n],
-            matrix_inputs:  [0.0; 24],
-            matrix_outputs: [0.0; 24],
+            delayline_inputs: vec![0f32; n],
+            delayline_outpus: vec![0f32; n],
+            matrix_inputs:  [0f32; 24],
+            matrix_outputs: [0f32; 24],
             //mixing_matrix: create_hadamard(N),
             // mixing_matrix: todo()
         }
     }
     pub fn process(&mut self, samples: &[f32], output: &mut [f32]) {
         for i in 0..self.delaylines.len() {
-            print!("{}", samples[i]);
+            print!("{:?}", samples[i]);
 
             self.delayline_inputs[i] = samples
                 .into_iter()
                 .skip(i)
                 .step_by(24)
-                .fold(0f32, |acc, &x| acc + x);
-            self.delayline_inputs[i] += self.matrix_outputs[i];
+                .fold(0.0, |acc, &x| acc + x);
+            self.delayline_inputs[i] = self.delayline_inputs[i]+self.matrix_outputs[i];
             // self.delayline_outpus[i] = self.delaylines[i].tick(self.delayline_inputs[i]);
             output[i] = self.delaylines[i].tick(self.delayline_inputs[i]);
         }
@@ -115,16 +117,18 @@ impl FeedbackDelayNetwork {
 // }
 
 #[allow(unused)]
-pub struct FDNLine {
+pub struct FDNLine 
+{
     delay_line_buffer: buffers::CircularDelayBuffer,
     filter: IIRFilter,//DirectForm2Transposed<f32>,
     length: usize,
 }
 
-impl FDNLine {
+impl FDNLine 
+{
     // pub fn new(length: usize, biquad_coeffs: Coefficients<f32>) -> Self {
     pub fn new(length: usize, fdn_b: Vec<f32>, fdn_a: Vec<f32>) -> Self {
-        let mut delay_line_buffer = buffers::CircularDelayBuffer::new(length);
+        let mut delay_line_buffer: buffers::CircularDelayBuffer = buffers::CircularDelayBuffer::new(length);
         // let coeffs = Coefficients {
         //     a1: biquad_coeffs.0[1],
         //     a2: biquad_coeffs.0[2],
@@ -132,7 +136,7 @@ impl FDNLine {
         //     b1: biquad_coeffs.1[1],
         //     b2: biquad_coeffs.1[2],
         // };
-        delay_line_buffer.set_delay_time_samples(length as f32);
+        delay_line_buffer.set_delay_time_samples(length as f32 );
         //let filter: DirectForm2Transposed<f32> =
         //    DirectForm2Transposed::<f32>::new(biquad_coeffs);
         let filter = IIRFilter::from_filtercoefficients(&IIRFilterCoefficients::new(fdn_b, fdn_a));

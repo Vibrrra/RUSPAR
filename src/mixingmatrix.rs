@@ -1,4 +1,5 @@
 use ndarray::Array2;
+use num_traits::Float;
 
 pub fn create_hadamard(inputs: usize) -> Array2<f32> {
     //let n = (2i32).pow(n as u32);
@@ -756,7 +757,7 @@ pub fn process_hdm32(i: &[f32], o: &mut [f32]) {
     }
 }
 
-pub fn process_hdm24(i: &[f32], o: &mut [f32]) {
+pub fn process_hdm24<T: Float>(i: &[T], o: &mut [T]) {
     assert!(i.len() == 24);
     assert!(o.len() == 24);
 
@@ -1093,7 +1094,7 @@ pub fn process_hdm24(i: &[f32], o: &mut [f32]) {
         + i[22]
         + i[23];
     for s in o.iter_mut() {
-        *s *= HAD24SCALE;
+        *s = *s * T::from(HAD24SCALE).unwrap(); 
     }
 }
 

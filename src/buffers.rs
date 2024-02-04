@@ -1,13 +1,18 @@
 use bit_mask_ring_buf::{self, next_pow_of_2, BMRingBuf};
+use num_traits::Float;
 
 #[derive(Debug, Clone)]
-pub struct CircularDelayBuffer {
+pub struct CircularDelayBuffer 
+where 
+{
     rb: BMRingBuf<f32>,
     wp: isize,
     rp: f32,
 }
 
-impl CircularDelayBuffer {
+impl CircularDelayBuffer 
+where 
+{
     pub fn new(length: usize) -> Self {
         let len = next_pow_of_2(length);
         Self {
@@ -55,12 +60,14 @@ impl CircularDelayBuffer {
     } 
 }
 
-pub struct StereoBuffer {
+pub struct StereoBuffer 
+{
     l_buffer: CircularDelayBuffer,
     r_buffer: CircularDelayBuffer,
 }
 
-impl StereoBuffer {
+impl StereoBuffer 
+{
     pub fn new(length: usize) -> Self {
         Self {
             l_buffer: CircularDelayBuffer::new(length),

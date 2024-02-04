@@ -1,7 +1,8 @@
 use bit_mask_ring_buf::BMRingBuf;
-use hound::WavReader;
+use hound::{Sample, WavReader};
+use num_traits::{Float, FromPrimitive, ToPrimitive};
 
-use std::{path::Path, io::BufReader, fs::File, vec};
+use std::{fs::File, io::BufReader, marker::PhantomData, path::Path, vec};
 
 use crate::buffers::CircularDelayBuffer;
 
@@ -76,7 +77,8 @@ pub fn readwav_mono(path: &str) -> Vec<f32> {
 }
 
 #[allow(unused)]
-pub struct AudioFileManager {
+pub struct AudioFileManager
+{
     file_path: String,
     wav_reader: WavReader<BufReader<File>>,
     bit_depth: u16, // reader.spec().bits_per_sample;
@@ -88,7 +90,7 @@ pub struct AudioFileManager {
 }
 
 impl AudioFileManager {
-    pub fn new(file_path: String, buffer_size: usize) -> Self {
+    pub fn new(file_path: String, buffer_size: usize) -> AudioFileManager {
         let mut wav_reader = match WavReader::open(Path::new(file_path.as_str())) {
             Ok(wav_reader) => wav_reader,
             Err(_) => panic!("Wav file could not be opened! Path: {:?}", file_path),
@@ -97,7 +99,8 @@ impl AudioFileManager {
         let sample_format: hound::SampleFormat = wav_reader.spec().sample_format;
         let channels = wav_reader.spec().channels as usize;
         let num_samples = wav_reader.duration() as usize;
-        let max_val = (2.0f32).powf(bit_depth as f32 - 1.0);
+        
+        let max_val: f32 = (2.0).powf(bit_depth as f32 - 1.0);
         let mut buffer = CircularDelayBuffer::new(num_samples);
         match sample_format {
             hound::SampleFormat::Float => {
@@ -114,14 +117,14 @@ impl AudioFileManager {
                 wav_reader.samples::<i32>().step_by(channels).enumerate().for_each(|(n, sample_result)| {
                     match sample_result {
                         Ok(sample) => {
-                            buffer.write(sample as f32 / max_val);
+                            buffer.write( sample as f32 / max_val);
                         },
                         Err(_) => {},
                     }
                 })
             }
         }        
-        Self {file_path, wav_reader, bit_depth, sample_format, channels, num_samples, max_val, buffer}
+        AudioFileManager {file_path, wav_reader, bit_depth, sample_format, channels, num_samples, max_val, buffer}
     }
 
     pub fn read_n_samples(&mut self, n: usize, out: &mut [f32]) {
