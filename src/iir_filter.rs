@@ -169,7 +169,7 @@ impl HrtfFilterIIR {
         }
         for i in 16..31 {
             self.buffer_l[i] = self.buffer_l[i+1] + audio_in[0] * self.coeffs.b_l[i+1] ;
-            self.buffer_l[i] = self.buffer_l[i+1] + audio_in[1] * self.coeffs.b_l[i+1] ;
+            self.buffer_r[i] = self.buffer_r[i+1] + audio_in[1] * self.coeffs.b_r[i+1] ;
         }
         self.buffer_l[31] = audio_in[0] * self.coeffs.b_l[32];
         self.buffer_r[31] = audio_in[1] * self.coeffs.b_r[32];
@@ -273,6 +273,7 @@ impl HrtfProcessorIIR {
         new_coeffs: &HRTFFilterIIRCoefficients,
     ) {
         self.hrir_iir.coeffs.update_coeffs(&new_coeffs);
+        // self.hrir_iir.flush(); // maybe
         self.left_delay.set_delay_time( self.hrir_iir.coeffs.itd_delay_l);
         self.right_delay.set_delay_time(self.hrir_iir.coeffs.itd_delay_r);
         self.left_delay_old.set_delay_time(self.hrir_iir_old.coeffs.itd_delay_l);

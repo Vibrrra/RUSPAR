@@ -213,6 +213,7 @@ where
                             );
                             let new_coeffs = iir_filterstorage.get_filter(id);
                             r.hrtf_iir.hrir_iir.coeffs.update_coeffs(new_coeffs);
+                            r.hrtf_iir.hrir_iir.coeffs.update_coeffs(new_coeffs);
                             // r.hrtf_iir.hrir_iir_old = r.hrtf_iir.hrir_iir.clone();
                         })
                     });
@@ -519,7 +520,7 @@ fn test_iir_hrtf_function() {
     }
     
     // println!("{:#?}", coeffs);
-    println!("{:#?}", y_l);
+    println!("{:#?}", y_r);
 
 }
 #[test]
@@ -548,7 +549,7 @@ fn test_iir_hrtf_indi_function() {
     let mut y_r = Vec::new();
     for i in 0 .. 128 {
         // let mut o = delay_left.process(x[i]);
-        let mut out: [f32; 2] = [x[i],0.0];
+        let mut out: [f32; 2] = [x[i],x[i]];
         
         out =iir_filter.process(&out);
         // hrtf_prcocessor.process(x[i],fade_in[i], fade_out[i],&mut out) ;//, fade_in[i], fade_out[i], &mut out);
@@ -557,7 +558,7 @@ fn test_iir_hrtf_indi_function() {
     }
     
     // println!("{:#?}", coeffs);
-    println!("{:#?}", y_l);
+    println!("{:#?}", y_r);
 
 }
 
