@@ -1,15 +1,12 @@
+use biquad::{Biquad, DirectForm2Transposed};
 use cpal::{
     self,
     traits::{DeviceTrait, StreamTrait},
     BufferSize, FromSample, Sample, SizedSample, StreamConfig,
 };
 
-
-
-use std::thread;
-use std::{
-    f32::consts::PI,  path::Path, sync::mpsc::Receiver, vec,
-};
+use std::{thread::{self, sleep}, time::Duration};
+use std::{f32::consts::PI, path::Path, sync::mpsc::Receiver, vec};
 
 use crate::{
     assets::{A_FDN, A_FDN_TC, B_FDN, B_FDN_TC, DL_S},
@@ -190,6 +187,15 @@ where
     let mut audio_temp_buffer = vec![0.0f32; buffer_size];
     // INIT . This loop blocks the current fucntion for 5 secs and waits for
     // a first update from the server to initialize all variables with sane data
+    
+    // walls lp te
+    let wall_coeff: biquad::Coefficients<f32> = biquad::Coefficients{a1: -0.05349410894440048,
+        a2: -0.9339868067786975,
+        b0: 0.003129771069225494,
+        b1: 0.006259542138450988,
+        b2: 0.003129771069225494};
+    let mut biquad = biquad::DirectForm2Transposed::<f32>::new(wall_coeff);
+
     loop {
         // match rx.recv_timeout(Duration::from_secs(5)) {
         match rx.try_recv() {
@@ -211,6 +217,7 @@ where
                                 orientation.azimuth,
                                 orientation.elevation,
                             );
+                            r.new_hrtf_id = id;
                             let new_coeffs = iir_filterstorage.get_filter(id);
                             r.hrtf_iir.hrir_iir.coeffs.update_coeffs(new_coeffs);
                             r.hrtf_iir.hrir_iir.coeffs.update_coeffs(new_coeffs);
@@ -257,8 +264,10 @@ where
                                     orientation.azimuth,
                                     orientation.elevation,
                                 );
-                                let new_coeffs = iir_filterstorage.get_filter(id);
-                                r.hrtf_iir.hrir_iir.coeffs.update_coeffs(new_coeffs);
+                                // r.old_hrtf_id = r.new_hrtf_id;
+                                r.new_hrtf_id = id;
+                                // let new_coeffs = iir_filterstorage.get_filter(id);
+                                // r.hrtf_iir.hrir_iir.coeffs.update_coeffs(new_coeffs);
                                 r.dist_gain = 1.0 / s.dist;
                             })
                         });
@@ -304,6 +313,9 @@ where
                     .collect();
                 let parent_src_idx = 0;
                 let mut src = &mut sources.sources[i][parent_src_idx];
+                let new_coeffs = iir_filterstorage.get_filter(src.new_hrtf_id);
+                src.hrtf_iir.update(new_coeffs);// hrir_iir.coeffs.update_coeffs(new_coeffs);
+                // src.dist_gain = 1.0 / s.dist;
                 let mut y = 0f32;
                 audio_in
                     .iter()
@@ -313,8 +325,9 @@ where
                     .zip(fade_out.iter())
                     .for_each(|((((a_in, temp), outb), fin), fout)| {
                         y = src.delayline.process(*a_in);
-                        *outb = y;
-                        src.hrtf_iir.process(y*src.dist_gain, *fin, *fout, temp);
+                        *outb = biquad.run(y);
+                         
+                        src.hrtf_iir.process(y * src.dist_gain, *fin, *fout, temp);
                     });
                 // y = src.delayline.process(&audio_in);
 
@@ -325,14 +338,16 @@ where
                 for ism_ranges_idx in 0..ISM_INDEX_RANGES.len() {
                     let parent_src_idx = ISM_INDEX_RANGES[ism_ranges_idx].0;
                     let src = &sources.sources[i][parent_src_idx];
+
                     audio_temp_buffer.copy_from_slice(src.output_buffer.as_slice());
                     // let o = sources.sources[i][parent_src_idx].output_buffer.as_slice();
                     for ism_idx in
                         ISM_INDEX_RANGES[ism_ranges_idx].1..ISM_INDEX_RANGES[ism_ranges_idx].2
                     {
                         let src = &mut sources.sources[i][ism_idx];
-                        // src.delayline
-                        //     .process_block(&audio_temp_buffer, &mut src.output_buffer);
+                        let new_coeffs = iir_filterstorage.get_filter(src.new_hrtf_id);
+                        src.hrtf_iir.update(new_coeffs);
+                        // src.dist_gain = 1.0 / src. dist;
                         audio_temp_buffer
                             .iter()
                             .zip(temp_buffer.chunks_exact_mut(channels))
@@ -341,8 +356,9 @@ where
                             .zip(fade_out.iter())
                             .for_each(|((((a_in, temp), outb), fin), fout)| {
                                 y = src.delayline.process(*a_in);
-                                *outb = y;
-                                src.hrtf_iir.process_add(y*src.dist_gain, *fin, *fout, temp);
+                                *outb = src.wall_filter.run(y);
+                                src.hrtf_iir
+                                    .process_add(y * src.dist_gain, *fin, *fout, temp);
                             });
                         // let nh = hrtf_storage.get_binaural_filter(src.new_hrtf_id);
                         // let oh =hrtf_storage.get_binaural_filter(src.old_hrtf_id);
@@ -354,7 +370,7 @@ where
             for (frames, input) in data.chunks_mut(2).zip(temp_buffer.chunks(2)) {
                 frames.iter_mut().zip(input.iter()).for_each(|(o, i)| {
                     //  0.5 -> hardcoded volume (safety) for now
-                    *o = T::from_sample(*i * 0.015f32);
+                    *o = T::from_sample(*i * 0.035f32);
                 });
             }
 
@@ -375,7 +391,7 @@ where
 
     let stream_play_res: Result<(), cpal::PlayStreamError> = stream_res.play();
     match stream_play_res {
-        Ok(_) => loop {},
+        Ok(_) => loop { sleep(Duration::from_millis(50))},
         Err(e) => {
             println!("Error opening stream: {:?}", e)
         }
@@ -393,9 +409,15 @@ pub struct ISMDelayLine {
     pub old_hrtf_id: usize,
     pub dist_gain: f32,
     pub hrtf_iir: HrtfProcessorIIR,
+    pub wall_filter: DirectForm2Transposed<f32>
 }
 impl ISMDelayLine {
     pub fn new(delayline_length: usize, buffer_length: usize, spatializer: Spatializer) -> Self {
+        let wall_coeff: biquad::Coefficients<f32> = biquad::Coefficients{a1: -0.05349410894440048,
+            a2: -0.9339868067786975,
+            b0: 0.003129771069225494,
+            b1: 0.006259542138450988,
+            b2: 0.003129771069225494};
         ISMDelayLine {
             delayline: DelayLine::new(delayline_length),
             output_buffer: vec![0.0f32; buffer_length].into(),
@@ -404,6 +426,7 @@ impl ISMDelayLine {
             old_hrtf_id: 1,
             dist_gain: 1.0,
             hrtf_iir: HrtfProcessorIIR::new(),
+            wall_filter: DirectForm2Transposed::<f32>::new(wall_coeff)
         }
     }
 }
@@ -423,8 +446,6 @@ fn audio_process(output: &mut [f32], renderer: &mut dyn FnMut() -> (Vec<f32>, Ve
         frame[1] = to_out_r; //r[1] * adjust_loudness(n_sources);
     }
 }
-
-
 
 // helper
 pub fn create_fade_in(n_points: usize) -> Vec<f32> {
@@ -465,30 +486,29 @@ fn test_iir_function() {
     let iir_angles_path: &Path = Path::new("assets/hrir_iir_angles.dat");
     let iir_delays_path: &Path = Path::new("assets/hrir_iir_delays.dat");
     let (iir_filterstorage, iir_filter_tree) =
-    FilterStorageIIR::new(iir_coeffs_path, iir_angles_path, iir_delays_path);
+        FilterStorageIIR::new(iir_coeffs_path, iir_angles_path, iir_delays_path);
     let fade_in = create_fade_in(128);
     let fade_out = create_fade_out(128);
     let coeffs = iir_filterstorage.get_filter(1);
     let mut hrtf_prcocessor = HrtfProcessorIIR::new();
     hrtf_prcocessor.update(coeffs);
-    
+
     let fade_in = create_fade_in(128);
     let fade_out = create_fade_in(128);
 
     let x = impulse(128);
     let mut y_l = Vec::new();
     let mut y_r = Vec::new();
-    for i in 0 .. 128 {
-        let mut out: [f32; 2] = [x[i],0.0];
+    for i in 0..128 {
+        let mut out: [f32; 2] = [x[i], 0.0];
 
-        let out = hrtf_prcocessor.hrir_iir.process(&out) ;//, fade_in[i], fade_out[i], &mut out);
+        let out = hrtf_prcocessor.hrir_iir.process(&out); //, fade_in[i], fade_out[i], &mut out);
         y_l.push(out[0]);
         y_r.push(out[1]);
     }
-    
+
     // println!("{:#?}", coeffs);
     println!("{:#?}", y_l);
-
 }
 #[test]
 fn test_iir_hrtf_function() {
@@ -498,30 +518,29 @@ fn test_iir_hrtf_function() {
     let iir_angles_path: &Path = Path::new("assets/hrir_iir_angles.dat");
     let iir_delays_path: &Path = Path::new("assets/hrir_iir_delays.dat");
     let (iir_filterstorage, iir_filter_tree) =
-    FilterStorageIIR::new(iir_coeffs_path, iir_angles_path, iir_delays_path);
+        FilterStorageIIR::new(iir_coeffs_path, iir_angles_path, iir_delays_path);
     let fade_in = create_fade_in(128);
     let fade_out = create_fade_out(128);
     let coeffs = iir_filterstorage.get_filter(1);
     let mut hrtf_prcocessor = HrtfProcessorIIR::new();
     hrtf_prcocessor.update(coeffs);
-    
+
     let fade_in = create_fade_in(128);
     let fade_out = create_fade_out(128);
-    let dist_gain = 1.0/2.0;
+    let dist_gain = 1.0 / 2.0;
     let x = impulse(128);
     let mut y_l = Vec::new();
     let mut y_r = Vec::new();
-    for i in 0 .. 128 {
-        let mut out: [f32; 2] = [x[i],0.0];
+    for i in 0..128 {
+        let mut out: [f32; 2] = [x[i], 0.0];
 
-        hrtf_prcocessor.process(x[i],fade_in[i], fade_out[i],&mut out) ;//, fade_in[i], fade_out[i], &mut out);
+        hrtf_prcocessor.process(x[i], fade_in[i], fade_out[i], &mut out); //, fade_in[i], fade_out[i], &mut out);
         y_l.push(out[0] * dist_gain);
         y_r.push(out[1] * dist_gain);
     }
-    
+
     // println!("{:#?}", coeffs);
     println!("{:#?}", y_r);
-
 }
 #[test]
 fn test_iir_hrtf_indi_function() {
@@ -531,7 +550,7 @@ fn test_iir_hrtf_indi_function() {
     let iir_angles_path: &Path = Path::new("assets/hrir_iir_angles.dat");
     let iir_delays_path: &Path = Path::new("assets/hrir_iir_delays.dat");
     let (iir_filterstorage, iir_filter_tree) =
-    FilterStorageIIR::new(iir_coeffs_path, iir_angles_path, iir_delays_path);
+        FilterStorageIIR::new(iir_coeffs_path, iir_angles_path, iir_delays_path);
     let fade_in = create_fade_in(128);
     let fade_out = create_fade_out(128);
     let coeffs = iir_filterstorage.get_filter(1);
@@ -540,35 +559,34 @@ fn test_iir_hrtf_indi_function() {
     // hrtf_prcocessor.update(coeffs);
     let mut iir_filter = HrtfFilterIIR::default();
     iir_filter.coeffs = coeffs.clone();
-    
+
     // let fade_in = create_fade_in(128);
     // let fade_out = create_fade_out(128);
 
     let x = impulse(128);
     let mut y_l = Vec::new();
     let mut y_r = Vec::new();
-    for i in 0 .. 128 {
+    for i in 0..128 {
         // let mut o = delay_left.process(x[i]);
-        let mut out: [f32; 2] = [x[i],x[i]];
-        
-        out =iir_filter.process(&out);
+        let mut out: [f32; 2] = [x[i], x[i]];
+
+        out = iir_filter.process(&out);
         // hrtf_prcocessor.process(x[i],fade_in[i], fade_out[i],&mut out) ;//, fade_in[i], fade_out[i], &mut out);
         y_l.push(out[0]);
         y_r.push(out[1]);
     }
-    
+
     // println!("{:#?}", coeffs);
     println!("{:#?}", y_r);
-
 }
 
-#[test] 
+#[test]
 fn test_df2t() {
     let iir_coeffs_path: &Path = Path::new("assets/hrir_iir_coeffs.dat");
     let iir_angles_path: &Path = Path::new("assets/hrir_iir_angles.dat");
     let iir_delays_path: &Path = Path::new("assets/hrir_iir_delays.dat");
     let (iir_filterstorage, iir_filter_tree) =
-    FilterStorageIIR::new(iir_coeffs_path, iir_angles_path, iir_delays_path);
+        FilterStorageIIR::new(iir_coeffs_path, iir_angles_path, iir_delays_path);
     let fade_in = create_fade_in(128);
     let fade_out = create_fade_out(128);
     let coeffs: &crate::iir_filter::HRTFFilterIIRCoefficients = iir_filterstorage.get_filter(1);
@@ -576,10 +594,9 @@ fn test_df2t() {
     let a = coeffs.a_l;
     let mut buf = vec![0.0f32; 32];
     let x = impulse(128);
-    let mut y = vec![0.0f32; 128]; 
+    let mut y = vec![0.0f32; 128];
     for i in 0..128 {
         y[i] = proc_tpdf2(x[i], &b, &a, &mut buf);
     }
     println!("{:#?}", y)
 }
-

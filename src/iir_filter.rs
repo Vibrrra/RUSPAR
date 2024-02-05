@@ -112,7 +112,7 @@ impl IIRFilter {
     }
 }
 
-#[derive( Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct HrtfFilterIIR {
     pub coeffs: HRTFFilterIIRCoefficients,
     buffer_l: Vec<f32>,
@@ -164,16 +164,17 @@ impl HrtfFilterIIR {
         let y_l = self.coeffs.b_l[0] * audio_in[0] + self.buffer_l[0];
         let y_r = self.coeffs.b_r[0] * audio_in[1] + self.buffer_r[0];
         for i in 0..16 {
-           self.buffer_l[i] = self.buffer_l[i+1] + self.coeffs.b_l[i+1] * audio_in[0] - self.coeffs.a_l[i+1] * y_l;
-           self.buffer_r[i] = self.buffer_r[i+1] + self.coeffs.b_r[i+1] * audio_in[1] - self.coeffs.a_r[i+1] * y_r;
+            self.buffer_l[i] = self.buffer_l[i + 1] + self.coeffs.b_l[i + 1] * audio_in[0]
+                - self.coeffs.a_l[i + 1] * y_l;
+            self.buffer_r[i] = self.buffer_r[i + 1] + self.coeffs.b_r[i + 1] * audio_in[1]
+                - self.coeffs.a_r[i + 1] * y_r;
         }
         for i in 16..31 {
-            self.buffer_l[i] = self.buffer_l[i+1] + audio_in[0] * self.coeffs.b_l[i+1] ;
-            self.buffer_r[i] = self.buffer_r[i+1] + audio_in[1] * self.coeffs.b_r[i+1] ;
+            self.buffer_l[i] = self.buffer_l[i + 1] + audio_in[0] * self.coeffs.b_l[i + 1];
+            self.buffer_r[i] = self.buffer_r[i + 1] + audio_in[1] * self.coeffs.b_r[i + 1];
         }
         self.buffer_l[31] = audio_in[0] * self.coeffs.b_l[32];
         self.buffer_r[31] = audio_in[1] * self.coeffs.b_r[32];
-        
 
         [y_l, y_r]
     }
@@ -260,24 +261,26 @@ pub struct HrtfProcessorIIR {
 impl HrtfProcessorIIR {
     pub fn new() -> Self {
         Self {
-            left_delay: CircularBuffer::new(32,0.0),
-            right_delay: CircularBuffer::new(32,0.0),
-            left_delay_old: CircularBuffer::new(32,0.0),
-            right_delay_old: CircularBuffer::new(32,0.0),
+            left_delay: CircularBuffer::new(32, 0.0),
+            right_delay: CircularBuffer::new(32, 0.0),
+            left_delay_old: CircularBuffer::new(32, 0.0),
+            right_delay_old: CircularBuffer::new(32, 0.0),
             hrir_iir: HrtfFilterIIR::default(),
             hrir_iir_old: HrtfFilterIIR::default(),
         }
     }
-    pub fn update(
-        &mut self,
-        new_coeffs: &HRTFFilterIIRCoefficients,
-    ) {
-        self.hrir_iir.coeffs.update_coeffs(&new_coeffs);
-        // self.hrir_iir.flush(); // maybe
-        self.left_delay.set_delay_time( self.hrir_iir.coeffs.itd_delay_l);
-        self.right_delay.set_delay_time(self.hrir_iir.coeffs.itd_delay_r);
-        self.left_delay_old.set_delay_time(self.hrir_iir_old.coeffs.itd_delay_l);
-        self.right_delay_old.set_delay_time(self.hrir_iir_old.coeffs.itd_delay_r);
+    pub fn update(&mut self, new_coeffs: &HRTFFilterIIRCoefficients) {
+        self.hrir_iir_old = self.hrir_iir.clone(); // coeffs.update_coeffs(&new_coeffs);
+        self.hrir_iir.flush(); // maybe
+        self.hrir_iir.coeffs = new_coeffs.clone();
+        self.left_delay
+            .set_delay_time(self.hrir_iir.coeffs.itd_delay_l);
+        self.right_delay
+            .set_delay_time(self.hrir_iir.coeffs.itd_delay_r);
+        self.left_delay_old
+            .set_delay_time(self.hrir_iir_old.coeffs.itd_delay_l);
+        self.right_delay_old
+            .set_delay_time(self.hrir_iir_old.coeffs.itd_delay_r);
     }
     pub fn process(
         &mut self,
@@ -319,20 +322,20 @@ impl HrtfProcessorIIR {
     }
 }
 
-pub fn proc_tpdf2(ina: f32 ,b: &[f32],a: &[f32],buf:&mut [f32]) -> f32 {
-//  let b = [0.0;33];
-//  let a = [0.0;17];
-//  let mut buf = vec![0.0;32];
-//  let ina = 0.0;
- let y = b[0] * ina + buf[0];
- for i in 0..16 {
-    buf[i] = buf[i+1] + b[i+1] * ina - a[i+1] * y;
- }
- for i in 16..31 {
-    buf[i] = buf[i+1] + b[i+1] * ina;
- }
- buf[31] = b[32] * ina;
- y
+pub fn proc_tpdf2(ina: f32, b: &[f32], a: &[f32], buf: &mut [f32]) -> f32 {
+    //  let b = [0.0;33];
+    //  let a = [0.0;17];
+    //  let mut buf = vec![0.0;32];
+    //  let ina = 0.0;
+    let y = b[0] * ina + buf[0];
+    for i in 0..16 {
+        buf[i] = buf[i + 1] + b[i + 1] * ina - a[i + 1] * y;
+    }
+    for i in 16..31 {
+        buf[i] = buf[i + 1] + b[i + 1] * ina;
+    }
+    buf[31] = b[32] * ina;
+    y
 }
 
 #[cfg(test)]
@@ -409,7 +412,5 @@ mod tests {
         print!("finished");
     }
     #[test]
-    fn test_hrtf_iir(){
-
-    }
+    fn test_hrtf_iir() {}
 }

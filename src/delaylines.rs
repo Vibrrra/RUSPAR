@@ -4,7 +4,7 @@ use crate::buffers::CircularDelayBuffer;
 
 #[derive(Debug, Clone)]
 pub struct DelayLine {
-    // pub buffer: CBuf, 
+    // pub buffer: CBuf,
     pub buffer: CircularDelayBuffer,
     // air_absorption_filter
     air_absorption_filter: DirectForm2Transposed<f32>,
@@ -23,7 +23,7 @@ impl DelayLine {
         };
         let air_absorption_filter = DirectForm2Transposed::<f32>::new(coeffs);
         Self {
-            // buffer: CBuf::new(delay_line_length, 0.0), 
+            // buffer: CBuf::new(delay_line_length, 0.0),
             buffer: CircularDelayBuffer::new(delay_line_length),
             air_absorption_coeff,
             air_absorption_filter,
@@ -103,8 +103,10 @@ impl CircularBuffer {
             + self.interpolate_next() * self.interp_pos;
         self.buffer[self.write_pos] = input;
         self.write_pos = (self.write_pos + 1) % self.buffer.len();
-        self.read_pos = ((self.write_pos as i32) + (self.buffer.len() as i32)  - (self.delay_time.floor() as i32)).rem_euclid(self.buffer.len() as i32) as usize;
-            
+        self.read_pos = ((self.write_pos as i32) + (self.buffer.len() as i32)
+            - (self.delay_time.floor() as i32))
+            .rem_euclid(self.buffer.len() as i32) as usize;
+
         self.interp_pos = self.delay_time - self.delay_time.floor();
         output
     }
@@ -139,9 +141,9 @@ fn test_delay_line() {
 
     // let mut o = vec![0.0; signal.len()];
     for i in 0..signal.len() {
-        let o = cb.process(signal[i],);
-        
-    print!("{:#?} ", o)
+        let o = cb.process(signal[i]);
+
+        print!("{:#?} ", o)
     }
     // let o = cb.process(&signal, &mut o);
 
