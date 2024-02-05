@@ -19,13 +19,13 @@ use crate::{
         TARGET_AUDIO_DEVICE,
     },
     convolver::Spatializer,
-    delaylines::{self, DelayLine},
+    delaylines::{self, CircularBuffer, DelayLine},
     fdn::{
         calc_fdn_delayline_lengths, calc_hrtf_sphere_points, map_ism_to_fdn_channel,
         FDNInputBuffer, FeedbackDelayNetwork,
     },
-    filter::{BinauralFilter, FFTManager, FilterStorage, FilterStorageIIR},
-    iir_filter::HrtfProcessorIIR,
+    filter::{impulse, BinauralFilter, FFTManager, FilterStorage, FilterStorageIIR},
+    iir_filter::{proc_tpdf2, HrtfFilterIIR, HrtfProcessorIIR},
     image_source_method::{
         from_source_tree, is_per_model, ISMLine, Room, Source, SourceTrees, SourceType,
         N_IS_INDEX_RANGES,
@@ -423,99 +423,7 @@ fn audio_process(output: &mut [f32], renderer: &mut dyn FnMut() -> (Vec<f32>, Ve
     }
 }
 
-struct ASS {
-    temp: Vec<f32>,
-    delayline0: ISMDelayLine,
-    delayline1: ISMDelayLine,
-    delayline2: ISMDelayLine,
-    delayline3: ISMDelayLine,
-    delayline4: ISMDelayLine,
-    delayline5: ISMDelayLine,
-    delayline6: ISMDelayLine,
-    delayline7: ISMDelayLine,
-    delayline8: ISMDelayLine,
-    delayline9: ISMDelayLine,
-    delayline10: ISMDelayLine,
-    delayline11: ISMDelayLine,
-    delayline12: ISMDelayLine,
-    delayline13: ISMDelayLine,
-    delayline14: ISMDelayLine,
-    delayline15: ISMDelayLine,
-    delayline16: ISMDelayLine,
-    delayline17: ISMDelayLine,
-    delayline18: ISMDelayLine,
-    delayline19: ISMDelayLine,
-    delayline20: ISMDelayLine,
-    delayline21: ISMDelayLine,
-    delayline22: ISMDelayLine,
-    delayline23: ISMDelayLine,
-    delayline24: ISMDelayLine,
-    delayline25: ISMDelayLine,
-    delayline26: ISMDelayLine,
-    delayline27: ISMDelayLine,
-    delayline28: ISMDelayLine,
-    delayline29: ISMDelayLine,
-    delayline30: ISMDelayLine,
-    delayline31: ISMDelayLine,
-    delayline32: ISMDelayLine,
-    delayline33: ISMDelayLine,
-    delayline34: ISMDelayLine,
-    delayline35: ISMDelayLine,
-    delayline36: ISMDelayLine,
-}
 
-impl ASS {
-    pub fn process(&mut self, audio_in: &[f32], out: &mut [f32]) {
-        ASS::proc_line(&mut self.delayline0, audio_in, &mut self.temp);
-        // ASS::proc_line(&mut self.delayline1, &self.temp, temp);
-        // ASS::proc_line(&mut self.delayline2, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline3, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline4, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline5, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline6, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline7, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline8, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline9, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline10, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline11, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline12, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline13, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline14, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline15, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline16, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline17, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline18, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline19, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline20, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline21, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline22, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline23, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline24, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline25, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline26, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline27, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline28, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline29, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline30, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline31, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline32, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline33, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline34, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline35, audio_in, temp);
-        // ASS::proc_line(&mut self.delayline36, audio_in, temp);
-    }
-
-    fn proc_line(delayline: &mut ISMDelayLine, audio_in: &[f32], temp: &mut [f32]) {
-        audio_in
-            .iter()
-            .zip(delayline.output_buffer.iter_mut())
-            .zip(temp.iter_mut())
-            .for_each(|((ain, dout), t)| {
-                *dout = delayline.delayline.process(*ain);
-                *t = *dout;
-            })
-    }
-}
 
 // helper
 pub fn create_fade_in(n_points: usize) -> Vec<f32> {
@@ -581,3 +489,96 @@ fn test_iir_function() {
     println!("{:#?}", y_l);
 
 }
+#[test]
+fn test_iir_hrtf_function() {
+    use crate::{filter::impulse, iir_filter::HRTFFilterIIRCoefficients};
+
+    let iir_coeffs_path: &Path = Path::new("assets/hrir_iir_coeffs.dat");
+    let iir_angles_path: &Path = Path::new("assets/hrir_iir_angles.dat");
+    let iir_delays_path: &Path = Path::new("assets/hrir_iir_delays.dat");
+    let (iir_filterstorage, iir_filter_tree) =
+    FilterStorageIIR::new(iir_coeffs_path, iir_angles_path, iir_delays_path);
+    let fade_in = create_fade_in(128);
+    let fade_out = create_fade_out(128);
+    let coeffs = iir_filterstorage.get_filter(1);
+    let mut hrtf_prcocessor = HrtfProcessorIIR::new();
+    hrtf_prcocessor.update(coeffs);
+    
+    let fade_in = create_fade_in(128);
+    let fade_out = create_fade_out(128);
+    let dist_gain = 1.0/2.0;
+    let x = impulse(128);
+    let mut y_l = Vec::new();
+    let mut y_r = Vec::new();
+    for i in 0 .. 128 {
+        let mut out: [f32; 2] = [x[i],0.0];
+
+        hrtf_prcocessor.process(x[i],fade_in[i], fade_out[i],&mut out) ;//, fade_in[i], fade_out[i], &mut out);
+        y_l.push(out[0] * dist_gain);
+        y_r.push(out[1] * dist_gain);
+    }
+    
+    // println!("{:#?}", coeffs);
+    println!("{:#?}", y_l);
+
+}
+#[test]
+fn test_iir_hrtf_indi_function() {
+    use crate::{filter::impulse, iir_filter::HRTFFilterIIRCoefficients};
+
+    let iir_coeffs_path: &Path = Path::new("assets/hrir_iir_coeffs.dat");
+    let iir_angles_path: &Path = Path::new("assets/hrir_iir_angles.dat");
+    let iir_delays_path: &Path = Path::new("assets/hrir_iir_delays.dat");
+    let (iir_filterstorage, iir_filter_tree) =
+    FilterStorageIIR::new(iir_coeffs_path, iir_angles_path, iir_delays_path);
+    let fade_in = create_fade_in(128);
+    let fade_out = create_fade_out(128);
+    let coeffs = iir_filterstorage.get_filter(1);
+    // let mut hrtf_prcocessor = HrtfProcessorIIR::new();
+    let mut delay_left = CircularBuffer::new(32, coeffs.itd_delay_l);
+    // hrtf_prcocessor.update(coeffs);
+    let mut iir_filter = HrtfFilterIIR::default();
+    iir_filter.coeffs = coeffs.clone();
+    
+    // let fade_in = create_fade_in(128);
+    // let fade_out = create_fade_out(128);
+
+    let x = impulse(128);
+    let mut y_l = Vec::new();
+    let mut y_r = Vec::new();
+    for i in 0 .. 128 {
+        // let mut o = delay_left.process(x[i]);
+        let mut out: [f32; 2] = [x[i],0.0];
+        
+        out =iir_filter.process(&out);
+        // hrtf_prcocessor.process(x[i],fade_in[i], fade_out[i],&mut out) ;//, fade_in[i], fade_out[i], &mut out);
+        y_l.push(out[0]);
+        y_r.push(out[1]);
+    }
+    
+    // println!("{:#?}", coeffs);
+    println!("{:#?}", y_l);
+
+}
+
+#[test] 
+fn test_df2t() {
+    let iir_coeffs_path: &Path = Path::new("assets/hrir_iir_coeffs.dat");
+    let iir_angles_path: &Path = Path::new("assets/hrir_iir_angles.dat");
+    let iir_delays_path: &Path = Path::new("assets/hrir_iir_delays.dat");
+    let (iir_filterstorage, iir_filter_tree) =
+    FilterStorageIIR::new(iir_coeffs_path, iir_angles_path, iir_delays_path);
+    let fade_in = create_fade_in(128);
+    let fade_out = create_fade_out(128);
+    let coeffs: &crate::iir_filter::HRTFFilterIIRCoefficients = iir_filterstorage.get_filter(1);
+    let b = coeffs.b_l;
+    let a = coeffs.a_l;
+    let mut buf = vec![0.0f32; 32];
+    let x = impulse(128);
+    let mut y = vec![0.0f32; 128]; 
+    for i in 0..128 {
+        y[i] = proc_tpdf2(x[i], &b, &a, &mut buf);
+    }
+    println!("{:#?}", y)
+}
+

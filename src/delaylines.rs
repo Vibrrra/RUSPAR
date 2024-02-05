@@ -4,7 +4,8 @@ use crate::buffers::CircularDelayBuffer;
 
 #[derive(Debug, Clone)]
 pub struct DelayLine {
-    pub buffer: CBuf, //CircularDelayBuffer,
+    // pub buffer: CBuf, 
+    pub buffer: CircularDelayBuffer,
     // air_absorption_filter
     air_absorption_filter: DirectForm2Transposed<f32>,
     air_absorption_coeff: f32,
@@ -22,7 +23,8 @@ impl DelayLine {
         };
         let air_absorption_filter = DirectForm2Transposed::<f32>::new(coeffs);
         Self {
-            buffer: CBuf::new(delay_line_length, 0.0), //CircularDelayBuffer::new(delay_line_length),
+            // buffer: CBuf::new(delay_line_length, 0.0), 
+            buffer: CircularDelayBuffer::new(delay_line_length),
             air_absorption_coeff,
             air_absorption_filter,
         }
@@ -77,7 +79,7 @@ fn getAirAttenuationCoeffFromDistance(distance: f32) -> f32 {
 }
 
 #[derive(Debug, Clone)]
-pub struct CBuf {
+pub struct CircularBuffer {
     buffer: Vec<f32>,
     read_pos: usize,
     write_pos: usize,
@@ -85,7 +87,7 @@ pub struct CBuf {
     delay_time: f32,
 }
 
-impl CBuf {
+impl CircularBuffer {
     pub fn new(buffer_size: usize, delay_time: f32) -> Self {
         Self {
             buffer: vec![0.0; buffer_size],
@@ -131,12 +133,17 @@ fn test_delay_line() {
     use std::vec;
 
     let mut cb = DelayLine::new(5);
-    let signal: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0, 5.0];
+    let signal: Vec<f32> = vec![1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
     // cb.buffer.set_delay_time_samples(3.0);
-    cb.buffer.set_delay_time(3.0); // set_delay_time_samples(3.0);
+    cb.buffer.set_delay_time(1.5); // set_delay_time_samples(3.0);
 
-    let mut o = vec![0.0; signal.len()];
-    cb.process_block(&signal, &mut o);
-
+    // let mut o = vec![0.0; signal.len()];
+    for i in 0..signal.len() {
+        let o = cb.process(signal[i],);
+        
     print!("{:#?} ", o)
+    }
+    // let o = cb.process(&signal, &mut o);
+
+    // print!("{:#?} ", o)
 }

@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 use biquad::coefficients;
 use num_traits::Float;
 
-use crate::{buffers::CircularDelayBuffer, delaylines::CBuf};
+use crate::{buffers::CircularDelayBuffer, delaylines::CircularBuffer};
 
 #[allow(dead_code)]
 enum FilterType {
@@ -112,11 +112,20 @@ impl IIRFilter {
     }
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive( Debug, Clone)]
 pub struct HrtfFilterIIR {
     pub coeffs: HRTFFilterIIRCoefficients,
     buffer_l: Vec<f32>,
     buffer_r: Vec<f32>,
+}
+impl Default for HrtfFilterIIR {
+    fn default() -> Self {
+        Self {
+            coeffs: HRTFFilterIIRCoefficients::default(),
+            buffer_l: vec![0.0f32; 32],
+            buffer_r: vec![0.0f32; 32],
+        }
+    }
 }
 impl HrtfFilterIIR {
     pub fn from_coeffs(coeffs: HRTFFilterIIRCoefficients) -> Self {
@@ -131,43 +140,58 @@ impl HrtfFilterIIR {
 
         let mut y_l: f32 = 0.0;
         let mut y_r: f32 = 0.0;
-        unsafe {
-            y_l = *self.buffer_l.get_unchecked(0) + audio_in[0] * *self.coeffs.b_l.get_unchecked(0);
-            y_r = *self.buffer_r.get_unchecked(0) + audio_in[1] * *self.coeffs.b_r.get_unchecked(0);
+        // unsafe {
+        //     y_l = *self.buffer_l.get_unchecked(0) + audio_in[0] * *self.coeffs.b_l.get_unchecked(0);
+        //     y_r = *self.buffer_r.get_unchecked(0) + audio_in[1] * *self.coeffs.b_r.get_unchecked(0);
 
-            for i in 0..15 {
-                *self.buffer_l.get_unchecked_mut(i) = *self.buffer_l.get_unchecked(i + 1)
-                    + audio_in[0] * *self.coeffs.b_l.get_unchecked(i + 1)
-                    + y_l * -*self.coeffs.a_l.get_unchecked(i + 1);
-                *self.buffer_r.get_unchecked_mut(i) = *self.buffer_r.get_unchecked(i + 1)
-                    + audio_in[1] * *self.coeffs.b_r.get_unchecked(i + 1)
-                    + y_r * -*self.coeffs.a_r.get_unchecked(i + 1);
-            }
-            for i in 15..30 {
-                *self.buffer_l.get_unchecked_mut(i) = *self.buffer_l.get_unchecked(i + 1)
-                    + audio_in[0] * *self.coeffs.b_l.get_unchecked(i + 1);
-                *self.buffer_r.get_unchecked_mut(i) = *self.buffer_r.get_unchecked(i + 1)
-                    + audio_in[1] * *self.coeffs.b_r.get_unchecked(i + 1);
-            }
-            *self.buffer_l.get_unchecked_mut(31) = audio_in[0] * *self.coeffs.b_l.get_unchecked(32);
-            *self.buffer_r.get_unchecked_mut(31) = audio_in[1] * *self.coeffs.b_r.get_unchecked(32);
+        //     for i in 0..15 {
+        //         *self.buffer_l.get_unchecked_mut(i) = *self.buffer_l.get_unchecked(i + 1)
+        //             + audio_in[0] * *self.coeffs.b_l.get_unchecked(i + 1)
+        //             + y_l * -*self.coeffs.a_l.get_unchecked(i + 1);
+        //         *self.buffer_r.get_unchecked_mut(i) = *self.buffer_r.get_unchecked(i + 1)
+        //             + audio_in[1] * *self.coeffs.b_r.get_unchecked(i + 1)
+        //             + y_r * -*self.coeffs.a_r.get_unchecked(i + 1);
+        //     }
+        //     for i in 15..30 {
+        //         *self.buffer_l.get_unchecked_mut(i) = *self.buffer_l.get_unchecked(i + 1)
+        //             + audio_in[0] * *self.coeffs.b_l.get_unchecked(i + 1);
+        //         *self.buffer_r.get_unchecked_mut(i) = *self.buffer_r.get_unchecked(i + 1)
+        //             + audio_in[1] * *self.coeffs.b_r.get_unchecked(i + 1);
+        //     }
+        //     *self.buffer_l.get_unchecked_mut(31) = audio_in[0] * *self.coeffs.b_l.get_unchecked(32);
+        //     *self.buffer_r.get_unchecked_mut(31) = audio_in[1] * *self.coeffs.b_r.get_unchecked(32);
+        // }
+        let y_l = self.coeffs.b_l[0] * audio_in[0] + self.buffer_l[0];
+        let y_r = self.coeffs.b_r[0] * audio_in[1] + self.buffer_r[0];
+        for i in 0..16 {
+           self.buffer_l[i] = self.buffer_l[i+1] + self.coeffs.b_l[i+1] * audio_in[0] - self.coeffs.a_l[i+1] * y_l;
+           self.buffer_r[i] = self.buffer_r[i+1] + self.coeffs.b_r[i+1] * audio_in[1] - self.coeffs.a_r[i+1] * y_r;
         }
+        for i in 16..31 {
+            self.buffer_l[i] = self.buffer_l[i+1] + audio_in[0] * self.coeffs.b_l[i+1] ;
+            self.buffer_l[i] = self.buffer_l[i+1] + audio_in[1] * self.coeffs.b_l[i+1] ;
+        }
+        self.buffer_l[31] = audio_in[0] * self.coeffs.b_l[32];
+        self.buffer_r[31] = audio_in[1] * self.coeffs.b_r[32];
+        
+
         [y_l, y_r]
     }
 
     pub fn flush(&mut self) {
-        self.buffer_l.iter_mut().for_each(|x| *x = 0.0f32)
+        self.buffer_l.iter_mut().for_each(|x| *x = 0.0f32);
+        self.buffer_r.iter_mut().for_each(|x| *x = 0.0f32);
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct HRTFFilterIIRCoefficients {
-    b_l: [f32; 33],
-    a_l: [f32; 17],
-    itd_delay_l: f32,
-    b_r: [f32; 33],
-    a_r: [f32; 17],
-    itd_delay_r: f32,
+    pub b_l: [f32; 33],
+    pub a_l: [f32; 17],
+    pub itd_delay_l: f32,
+    pub b_r: [f32; 33],
+    pub a_r: [f32; 17],
+    pub itd_delay_r: f32,
 }
 
 impl Default for HRTFFilterIIRCoefficients {
@@ -221,10 +245,14 @@ impl HRTFFilterIIRCoefficients {
 
 #[derive(Debug, Clone)]
 pub struct HrtfProcessorIIR {
-    left_delay: CBuf,
-    right_delay: CBuf,
-    left_delay_old: CBuf,
-    right_delay_old: CBuf,
+    left_delay: CircularBuffer,
+    right_delay: CircularBuffer,
+    left_delay_old: CircularBuffer,
+    right_delay_old: CircularBuffer,
+    // left_delay: CBuf,
+    // right_delay: CBuf,
+    // left_delay_old: CBuf,
+    // right_delay_old: CBuf,
     pub hrir_iir: HrtfFilterIIR,
     pub hrir_iir_old: HrtfFilterIIR,
 }
@@ -232,10 +260,10 @@ pub struct HrtfProcessorIIR {
 impl HrtfProcessorIIR {
     pub fn new() -> Self {
         Self {
-            left_delay: CBuf::new(32,0.0),
-            right_delay: CBuf::new(32,0.0),
-            left_delay_old: CBuf::new(32,0.0),
-            right_delay_old: CBuf::new(32,0.0),
+            left_delay: CircularBuffer::new(32,0.0),
+            right_delay: CircularBuffer::new(32,0.0),
+            left_delay_old: CircularBuffer::new(32,0.0),
+            right_delay_old: CircularBuffer::new(32,0.0),
             hrir_iir: HrtfFilterIIR::default(),
             hrir_iir_old: HrtfFilterIIR::default(),
         }
@@ -257,11 +285,11 @@ impl HrtfProcessorIIR {
         crossfade_out_val: f32,
         out: &mut [f32],
     ) {
-        let mut l = self.left_delay.process(audio_in);
-        let mut r = self.right_delay.process(audio_in);
-        let mut l_old = self.left_delay_old.process(audio_in);
-        let mut r_old = self.right_delay_old.process(audio_in);
-        let temp = self.hrir_iir.process(&mut [l, r]); //* crossfade_in_val;
+        let l = self.left_delay.process(audio_in);
+        let r = self.right_delay.process(audio_in);
+        let l_old = self.left_delay_old.process(audio_in);
+        let r_old = self.right_delay_old.process(audio_in);
+        let temp = self.hrir_iir.process(&[l, r]); //* crossfade_in_val;
         let temp2 = self.hrir_iir_old.process(&[l_old, r_old]); // * crossfade_out_val;
                                                                 // r = self.hrir_iir_l.process(r) * crossfade_in_val;
                                                                 // r += self.hrir_iir_l_old.process(r_old) * crossfade_out_val;
@@ -276,11 +304,11 @@ impl HrtfProcessorIIR {
         crossfade_out_val: f32,
         out: &mut [f32],
     ) {
-        let mut l = self.left_delay.process(audio_in);
-        let mut r = self.right_delay.process(audio_in);
-        let mut l_old = self.left_delay_old.process(audio_in);
-        let mut r_old = self.right_delay_old.process(audio_in);
-        let temp = self.hrir_iir.process(&mut [l, r]); //* crossfade_in_val;
+        let l = self.left_delay.process(audio_in);
+        let r = self.right_delay.process(audio_in);
+        let l_old = self.left_delay_old.process(audio_in);
+        let r_old = self.right_delay_old.process(audio_in);
+        let temp = self.hrir_iir.process(&[l, r]); //* crossfade_in_val;
         let temp2 = self.hrir_iir_old.process(&[l_old, r_old]); // * crossfade_out_val;
                                                                 // r = self.hrir_iir_l.process(r) * crossfade_in_val;
                                                                 // r += self.hrir_iir_l_old.process(r_old) * crossfade_out_val;
@@ -288,6 +316,22 @@ impl HrtfProcessorIIR {
         out[0] += temp[0] * crossfade_in_val + temp2[0] * crossfade_out_val;
         out[1] += temp[1] * crossfade_in_val + temp2[1] * crossfade_out_val;
     }
+}
+
+pub fn proc_tpdf2(ina: f32 ,b: &[f32],a: &[f32],buf:&mut [f32]) -> f32 {
+//  let b = [0.0;33];
+//  let a = [0.0;17];
+//  let mut buf = vec![0.0;32];
+//  let ina = 0.0;
+ let y = b[0] * ina + buf[0];
+ for i in 0..16 {
+    buf[i] = buf[i+1] + b[i+1] * ina - a[i+1] * y;
+ }
+ for i in 16..31 {
+    buf[i] = buf[i+1] + b[i+1] * ina;
+ }
+ buf[31] = b[32] * ina;
+ y
 }
 
 #[cfg(test)]

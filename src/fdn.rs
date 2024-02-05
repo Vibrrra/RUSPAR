@@ -139,7 +139,7 @@ impl FDNLine {
         //     b1: biquad_coeffs.1[1],
         //     b2: biquad_coeffs.1[2],
         // };
-        delay_line_buffer.set_delay_time_samples(length as f32);
+        delay_line_buffer.set_delay_time(length as f32);
         //let filter: DirectForm2Transposed<f32> =
         //    DirectForm2Transposed::<f32>::new(biquad_coeffs);
         let filter = IIRFilter::from_filtercoefficients(&IIRFilterCoefficients::new(fdn_b, fdn_a));
