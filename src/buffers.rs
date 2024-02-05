@@ -2,17 +2,13 @@ use bit_mask_ring_buf::{self, next_pow_of_2, BMRingBuf};
 use num_traits::Float;
 
 #[derive(Debug, Clone)]
-pub struct CircularDelayBuffer 
-where 
-{
+pub struct CircularDelayBuffer {
     rb: BMRingBuf<f32>,
     wp: isize,
     rp: f32,
 }
 
-impl CircularDelayBuffer 
-where 
-{
+impl CircularDelayBuffer {
     pub fn new(length: usize) -> Self {
         let len = next_pow_of_2(length);
         Self {
@@ -43,9 +39,9 @@ where
         self.write(sample);
         out
     }
-    pub fn process_block(&mut self, audio_in: &[f32], output: &mut[f32]) {
-        audio_in.iter().zip(output.iter_mut()).for_each(|(i,o)| {
-           *o = self.process(*i);
+    pub fn process_block(&mut self, audio_in: &[f32], output: &mut [f32]) {
+        audio_in.iter().zip(output.iter_mut()).for_each(|(i, o)| {
+            *o = self.process(*i);
         })
     }
     pub fn set_delay_time_ms(&mut self, delay_time: f32, sample_rate: f32) {
@@ -55,19 +51,19 @@ where
         }
         self.set_delay_time_samples(delay_time_in_samples);
     }
-    pub fn read_chunk(&mut  self, n: usize, out: &mut [f32]) {
-        out.iter_mut().for_each(|y| {*y = self.read();})
-    } 
+    pub fn read_chunk(&mut self, n: usize, out: &mut [f32]) {
+        out.iter_mut().for_each(|y| {
+            *y = self.read();
+        })
+    }
 }
 
-pub struct StereoBuffer 
-{
+pub struct StereoBuffer {
     l_buffer: CircularDelayBuffer,
     r_buffer: CircularDelayBuffer,
 }
 
-impl StereoBuffer 
-{
+impl StereoBuffer {
     pub fn new(length: usize) -> Self {
         Self {
             l_buffer: CircularDelayBuffer::new(length),
@@ -96,7 +92,6 @@ impl StereoBuffer
 struct CBuffer {
     length: usize,
     buffer: Vec<f32>,
-    
 }
 // pub fn lin_interp_f32(&self, index: f32) -> f32 {
 //     let index_floor = index.floor();

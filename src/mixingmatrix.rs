@@ -1094,7 +1094,7 @@ pub fn process_hdm24<T: Float>(i: &[T], o: &mut [T]) {
         + i[22]
         + i[23];
     for s in o.iter_mut() {
-        *s = *s * T::from(HAD24SCALE).unwrap(); 
+        *s = *s * T::from(HAD24SCALE).unwrap();
     }
 }
 
