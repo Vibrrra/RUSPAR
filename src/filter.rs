@@ -426,10 +426,11 @@ impl FilterTree {
             .1; //[1].1
         id
     }
+
 }
 
 pub struct FilterStorageIIR {
-    storage: HashMap<usize, HRTFFilterIIRCoefficients, BuildHasherDefault<NoHashHasher<usize>>>,
+    pub storage: HashMap<usize, HRTFFilterIIRCoefficients, BuildHasherDefault<NoHashHasher<usize>>>,
     available: bool,
 }
 impl FilterStorageIIR {
@@ -638,4 +639,25 @@ fn test_hrtf_read() {
     let hrtf_id = hrtf_tree.find_closest_stereo_filter_angle(90.0, 88.9);
     println!("hrtf_id: {hrtf_id}");
     let hrtf = hrtf_storage.get_binaural_filter(hrtf_id);
+}
+
+#[test]
+fn find_closest() {
+    let apath = Path::new("assets/hrir_iir_angles.dat");
+    let dpath = Path::new("assets/hrir_iir_delays.dat");
+    let ipath = Path::new("assets/hrir_iir_coeffs.dat");
+
+    let az = 0.25; //282.80426f32;
+    let el = -0.25;//-0.054752935f32;
+
+    let  iir_filter_storage: (FilterStorageIIR, FilterTree) = FilterStorageIIR::new(ipath, apath, dpath);
+    let hrtf_id = iir_filter_storage
+        .1
+        .find_closest_stereo_filter_angle(az, el);
+    println!("hrtf_id: {hrtf_id}");
+    let f = iir_filter_storage.0.get_filter(hrtf_id);
+    print!("{:?}", &[f.itd_delay_l, f.itd_delay_r]);
+
+
+
 }

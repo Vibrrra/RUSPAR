@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 use biquad::coefficients;
 use num_traits::Float;
 
-use crate::{buffers::CircularDelayBuffer, delaylines::CircularBuffer};
+use crate::{buffers::CircularDelayBuffer, delaylines::ITDBuffer2};
 
 #[allow(dead_code)]
 enum FilterType {
@@ -122,8 +122,8 @@ impl Default for HrtfFilterIIR {
     fn default() -> Self {
         Self {
             coeffs: HRTFFilterIIRCoefficients::default(),
-            buffer_l: vec![0.0f32; 32],
-            buffer_r: vec![0.0f32; 32],
+            buffer_l: vec![0.0f32; 64],
+            buffer_r: vec![0.0f32; 64],
         }
     }
 }
@@ -131,8 +131,8 @@ impl HrtfFilterIIR {
     pub fn from_coeffs(coeffs: HRTFFilterIIRCoefficients) -> Self {
         Self {
             coeffs,
-            buffer_l: vec![0.0; 32],
-            buffer_r: vec![0.0; 32],
+            buffer_l: vec![0.0; 64],
+            buffer_r: vec![0.0; 64],
         }
     }
     pub fn process(&mut self, audio_in: &[f32; 2]) -> [f32; 2] {
@@ -246,10 +246,10 @@ impl HRTFFilterIIRCoefficients {
 
 #[derive(Debug, Clone)]
 pub struct HrtfProcessorIIR {
-    left_delay: CircularBuffer,
-    right_delay: CircularBuffer,
-    left_delay_old: CircularBuffer,
-    right_delay_old: CircularBuffer,
+    left_delay: ITDBuffer2,
+    right_delay: ITDBuffer2,
+    left_delay_old: ITDBuffer2,
+    right_delay_old: ITDBuffer2,
     // left_delay: CBuf,
     // right_delay: CBuf,
     // left_delay_old: CBuf,
@@ -261,10 +261,10 @@ pub struct HrtfProcessorIIR {
 impl HrtfProcessorIIR {
     pub fn new() -> Self {
         Self {
-            left_delay: CircularBuffer::new(32, 0.0),
-            right_delay: CircularBuffer::new(32, 0.0),
-            left_delay_old: CircularBuffer::new(32, 0.0),
-            right_delay_old: CircularBuffer::new(32, 0.0),
+            left_delay: ITDBuffer2::new(32),//, 0.0),
+            right_delay: ITDBuffer2::new(32),//, 0.0),
+            left_delay_old: ITDBuffer2::new(32),//, 0.0),
+            right_delay_old: ITDBuffer2::new(32),//, 0.0),
             hrir_iir: HrtfFilterIIR::default(),
             hrir_iir_old: HrtfFilterIIR::default(),
         }
@@ -272,6 +272,7 @@ impl HrtfProcessorIIR {
     pub fn update(&mut self, new_coeffs: &HRTFFilterIIRCoefficients) {
         self.hrir_iir_old = self.hrir_iir.clone(); // coeffs.update_coeffs(&new_coeffs);
         self.hrir_iir.flush(); // maybe
+        // self.hrir_iir_old.flush(); // maybe
         self.hrir_iir.coeffs = new_coeffs.clone();
         self.left_delay
             .set_delay_time(self.hrir_iir.coeffs.itd_delay_l);

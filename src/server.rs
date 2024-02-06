@@ -1,13 +1,7 @@
-use std::{sync::mpsc, thread::sleep, time::Duration};
+use std::{path::Path, sync::mpsc, thread::sleep, time::Duration};
 
 use crate::{
-    audioSceneHandlerData::Scene_data,
-    audio_module::start_audio_thread,
-    config::{IMAGE_SOURCE_METHOD_ORDER, MAX_SOURCES},
-    image_source_method::{Room, SourceTrees, SourceType},
-    ism_test_structure::IMS,
-    osc::OSCHandler,
-    scene_parser::update_scene,
+    audioSceneHandlerData::Scene_data, audio_module::start_audio_thread, config::{IMAGE_SOURCE_METHOD_ORDER, MAX_SOURCES}, filter::{FilterStorageIIR, FilterTree}, iir_filter, image_source_method::{Room, SourceTrees, SourceType}, ism_test_structure::IMS, osc::OSCHandler, scene_parser::update_scene
 };
 use protobuf::Message;
 
@@ -27,6 +21,14 @@ pub fn start_server(port: u32, BUFFER_SIZE: usize) -> ! {
     // let mut ip_addr: String = String::new();
     let ip_addr = "127.0.0.1".to_string() + ":" + &port.to_string();
     let mut osc_handle = OSCHandler::new(&ip_addr);
+
+
+    // for oberservations only - for now
+    let apath = Path::new("assets/hrir_iir_angles.dat");
+    let dpath = Path::new("assets/hrir_iir_delays.dat");
+    let ipath = Path::new("assets/hrir_iir_coeffs.dat");
+    let  iir_filter_storage: (FilterStorageIIR, FilterTree) = FilterStorageIIR::new(ipath, apath, dpath);
+   
 
     // config the engine hereo
     // old
@@ -53,12 +55,11 @@ pub fn start_server(port: u32, BUFFER_SIZE: usize) -> ! {
         // update_scene(&scene_data, &mut source_trees);
         // let src = source_trees.arenas[0].get(source_trees.roots[0]).unwrap().get();
         //let tx_res = tx.send(source_trees.clone()); //.unwrap();
-        // println!("Az: {}, El: {}", isms.sources[0][0].listener_source_orientation.azimuth, isms.sources[0][0].listener_source_orientation.elevation);
         // new
         let x = &scene_data.listener.transform.position.x;
         let y = &scene_data.listener.transform.position.y;
         let z = &scene_data.listener.transform.position.z;
-        // println!("x: {}, y: {}, z:{}", x, y, z); // isms.sources[0][0].get_pos());
+        
         isms.update_from_scene(scene_data);
         let tx_res = tx.try_send(isms.clone());
         // let src = &isms.sources[0][0];
@@ -66,6 +67,18 @@ pub fn start_server(port: u32, BUFFER_SIZE: usize) -> ! {
         match tx_res {
             Ok(_) => {
 
+                let azel = isms.sources[1][0].get_lst_src_transform();
+                 println!("Az: {}, El: {}", azel.azimuth, azel.elevation);
+                 
+                let azel = isms.sources[0][0].get_lst_src_transform();
+                 println!("Az: {}, El: {}", azel.azimuth, azel.elevation);
+                // let hrtf_id = iir_filter_storage
+                // .1
+                // .find_closest_stereo_filter_angle(azel.azimuth, azel.elevation);
+                // println!("hrtf_id: {hrtf_id}   ");
+                // let f = iir_filter_storage.0.get_filter(hrtf_id);
+                // print!("{:?}",isms.sources[0][0].get_lst_src_transform());
+                // print!("{:?}", &[f.itd_delay_l, f.itd_delay_r]);
                 // println!("Send!")
             }
             Err(e) => {

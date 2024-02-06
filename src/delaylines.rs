@@ -79,7 +79,7 @@ fn getAirAttenuationCoeffFromDistance(distance: f32) -> f32 {
 }
 
 #[derive(Debug, Clone)]
-pub struct CircularBuffer {
+pub struct ITDBuffer {
     buffer: Vec<f32>,
     read_pos: usize,
     write_pos: usize,
@@ -87,7 +87,8 @@ pub struct CircularBuffer {
     delay_time: f32,
 }
 
-impl CircularBuffer {
+
+impl ITDBuffer {
     pub fn new(buffer_size: usize, delay_time: f32) -> Self {
         Self {
             buffer: vec![0.0; buffer_size],
@@ -127,7 +128,61 @@ impl CircularBuffer {
         self.delay_time = delay_time;
     }
 }
+ #[derive(Debug, Clone)]
+pub struct ITDBuffer2 {
+    
+    // Circular buffer for delay
+    buffer_len: f32,
+    buffer: Vec<f32>,
+    tail : f32,
+    head : f32,
+    delay_time: f32}
 
+impl ITDBuffer2 {
+    pub fn new( max_delay_samples: usize) -> ITDBuffer2 {
+        let buffer: Vec<f32> = vec![0.0; max_delay_samples];
+        ITDBuffer2 {
+
+            buffer,
+            head: 0.0,
+            tail: 0.0,
+            delay_time: 0.0,
+            buffer_len: max_delay_samples as f32,
+        }
+    }
+    pub fn set_delay_time(&mut self, delay_time: f32) {
+        self.delay_time = delay_time;
+    }
+    pub fn read_linear(&mut self,index: f32) -> f32 {
+        // Store the input in the delay buffer
+        let upper = (index + 1.0).floor();
+        let lower = index.floor();
+        let interp_amount = index - lower;
+        return self.get_sample(upper) * interp_amount + (1.0 - interp_amount) * self.get_sample(lower);   
+    }
+
+    pub fn write(&mut self, in_value: f32) {
+        self.head = (self.head+1.0) % self.buffer_len;
+        self.buffer[self.head as usize] = in_value;
+    }
+
+    pub fn get_sample(&mut self, in_value: f32) -> f32 {
+        self.tail = self.head - in_value;
+        if self.tail > (self.buffer_len -1.0) {
+            self.tail -= self.buffer_len ;
+        } else if self.tail < 0.0 {
+            self. tail+= self.buffer_len;
+        }
+
+        return self.buffer[self.tail as usize];
+    }
+    pub fn process(&mut self, in_value: f32) -> f32 {
+        let out = self.read_linear(self.delay_time);
+        self.write(in_value);
+        out
+    }
+
+}
 #[cfg(test)]
 #[test]
 
@@ -148,4 +203,18 @@ fn test_delay_line() {
     // let o = cb.process(&signal, &mut o);
 
     // print!("{:#?} ", o)
+}
+
+
+#[test]
+fn test_itd_Delay () {
+    let x = [1.0, 0f32,0f32,0f32,0f32,0f32,0f32,0f32,0f32];
+    let mut itdd = ITDBuffer2::new(5);
+    let delay_time = 1.5;
+
+    for i in x {
+        itdd.set_delay_time(delay_time);
+        let p = itdd.process(  i);
+        print!("{} ", p)
+    }
 }
