@@ -176,10 +176,34 @@ impl ITDBuffer2 {
 
         return self.buffer[self.tail as usize];
     }
+
+    pub fn read_cubic(&mut self, index: f32) -> f32 {
+        let y0 = (index - 1.0).floor() ;
+        let y1 = index.floor() ; // also y2
+        let y3 = (index + 1.0).floor() ;
+        let mu = index - y1 ;
+        Self::cubic_interpolation(y0, y1, y1, y3, mu)
+    }
     pub fn process(&mut self, in_value: f32) -> f32 {
         let out = self.read_linear(self.delay_time);
         self.write(in_value);
         out
+    }
+    pub fn process_cubic(&mut self, in_value: f32) -> f32 {
+        let out = self.read_cubic(self.delay_time);
+        self.write(in_value);
+        out
+    }
+
+
+    pub fn cubic_interpolation(y0: f32, y1: f32, y2: f32, y3: f32, mu: f32) -> f32 {
+        let mu2 = mu*mu;
+        let a0 = 0.5 * y0 + 1.5 * y1 - 1.5 * y2 + 0.5 * y3;
+        let a1 = y0 - 2.5 * y1 + 2.0 * y2 - 0.5 * y3;
+        let a2 = -0.5 * y0 + 0.5 * y2;
+        let a3 = y1;
+
+        return a0 * mu*mu2 + a1 * mu2 + a2 * mu + a3;
     }
 
 }
