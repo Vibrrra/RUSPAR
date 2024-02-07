@@ -353,12 +353,17 @@ where
                 }
             }
 
-            for (frames, input) in data.chunks_mut(2).zip(temp_buffer.chunks(2)) {
-                frames.iter_mut().zip(input.iter()).for_each(|(o, i)| {
+            // for (frames, input) in data.chunks_mut(2).zip(temp_buffer.chunks(2)) {
+            //     frames.iter_mut().zip(input.iter()).for_each(|(o, i)| {
+            //         //  0.5 -> hardcoded volume (safety) for now
+            //         *o = T::from_sample(*i * 0.35f32);
+            //     });
+            // }
+            data.iter_mut().zip(temp_buffer.iter()).for_each(|(o, i)| {
                     //  0.5 -> hardcoded volume (safety) for now
                     *o = T::from_sample(*i * 0.35f32);
                 });
-            }
+            
 
             // for (frames, input) in data.chunks_mut(2).zip(audio_in.iter()) {
 
