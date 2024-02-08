@@ -271,8 +271,13 @@ impl HrtfProcessorIIR {
     }
     pub fn update(&mut self, new_coeffs: &HRTFFilterIIRCoefficients) {
         self.hrir_iir_old = self.hrir_iir.clone(); // coeffs.update_coeffs(&new_coeffs);
+        self.left_delay_old
+            .set_delay_time(self.hrir_iir.coeffs.itd_delay_l);
+        self.right_delay_old
+            .set_delay_time(self.hrir_iir.coeffs.itd_delay_r);
+        
         self.hrir_iir.flush(); // maybe
-        // self.hrir_iir_old.flush(); // maybe
+// self.hrir_iir_old.flush(); // maybe
         self.hrir_iir.coeffs = new_coeffs.clone();
         self.left_delay
             .set_delay_time(self.hrir_iir.coeffs.itd_delay_l);
